@@ -16,10 +16,16 @@ im = sol1.read_image('C:\\Users\\Maor\\Pictures\\head-shot.jpg', sol1.REP_GREY)
 # plt.show()
 # plt.imshow(im_q, cmap=plt.cm.gray)
 
+plt.figure()
 imc = sol1.read_image('C:\\Users\\Maor\\Pictures\\head-shot.jpg', sol1.REP_RGB)
+# for i in range(1,11):
+#     plt.subplot(5,2,i)
+#     plt.imshow(sol1.quantize(im, i, 10)[0], cmap=plt.cm.gray)
+# plt.show()
+plt.figure()
 for i in range(1,11):
     plt.subplot(5,2,i)
-    plt.imshow(sol1.quantize(im, i, 10)[0], cmap=plt.cm.gray)
+    plt.imshow(sol1.quantize(imc, i, 10)[0])
 plt.show()
 
 

@@ -67,16 +67,16 @@ def histogram_equalize(im_orig):
         im_eq = np.interp(im.reshape(1, -1), bins[:-1], hist_cumsum_norm).reshape(im.shape).astype(np.uint8)
         hist_eq = np.histogram(im_eq, bins=256)[0]
 
-        plt.figure()
-        plt.subplot(2,2,1)
-        plt.imshow(im_orig, cmap=plt.cm.gray)
-        plt.subplot(2,2,2)
-        plt.imshow(im_eq, cmap=plt.cm.gray)
-        plt.subplot(2, 2, 3)
-        plt.plot(hist_cumsum, np.arange(256), np.arange(256), np.arange(256))
-        plt.subplot(2, 2, 4)
-        plt.plot(np.cumsum(hist_eq), np.arange(256), np.arange(256), np.arange(256))
-        plt.show()
+        # plt.figure()
+        # plt.subplot(2,2,1)
+        # plt.imshow(im_orig, cmap=plt.cm.gray)
+        # plt.subplot(2,2,2)
+        # plt.imshow(im_eq, cmap=plt.cm.gray)
+        # plt.subplot(2, 2, 3)
+        # plt.plot(hist_cumsum, np.arange(256), np.arange(256), np.arange(256))
+        # plt.subplot(2, 2, 4)
+        # plt.plot(np.cumsum(hist_eq), np.arange(256), np.arange(256), np.arange(256))
+        # plt.show()
 
         return (im_eq.astype(np.float32)/255), hist_orig, hist_eq
 
