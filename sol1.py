@@ -63,7 +63,7 @@ def histogram_equalize(im_orig):
         im = (im_orig*255).round().astype(np.uint8)
         hist_orig, bins = np.histogram(im, bins=256)
         hist_cumsum = np.cumsum(hist_orig)
-        hist_cumsum_norm = np.round(hist_cumsum * (255 / im.size))
+        hist_cumsum_norm = np.round(hist_cumsum * (255.0 / im.size))
         im_eq = np.interp(im.reshape(1, -1), bins[:-1], hist_cumsum_norm).reshape(im.shape).astype(np.uint8)
         hist_eq = np.histogram(im_eq, bins=256)[0]
 
@@ -142,3 +142,9 @@ def quantize (im_orig, n_quant, n_iter):
         im_quant = np.interp(im.reshape(1, -1), np.arange(256), calc_color_map(z,q)).reshape(im.shape).astype(np.float32) / 255
         return im_quant, error
 
+# uses lloyd algorithm for clustering (k-means) and euclidean metric
+# return [im_quant, error]
+def quantize_rgb (im_orig, n_quant, n_iter):
+    # each z - is (r,g,b) vals end of segment starting from last segment
+    # initial z - uniform like in 1d case - can start with the heaviest
+    pass
