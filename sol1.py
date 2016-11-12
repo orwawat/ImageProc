@@ -48,8 +48,7 @@ def rgb2yiq(imRGB):
 
 
 def yiq2rgb(imYIQ):
-    # TODO - can make this matrix a constant- not calc inv evey time
-    transmat = np.linalg.pinv(np.array([0.299, 0.587, 0.114, 0.596, -0.275, -0.321, 0.212, -0.523, 0.311]).reshape(3,3))
+    transmat = np.array([1, 0.956, 0.621, 1, -0.272, -0.647, 1, -1.106, 1.703]).reshape(3,3)
     return convert_rep(imYIQ, transmat)
 
 # return [im_eq, hist_orig, hist_eq]
@@ -57,16 +56,28 @@ def histogram_equalize(im_orig):
     if im_orig.ndim == 3:
         # this is a color image- work on the Y axis
         imYIQ = rgb2yiq(im_orig)
-        imYIQ[:,:,0], hist_orig, hist_eq = histogram_equalize(imYIQ[:,:,0])
+        imYIQ[:, :, 0], hist_orig, hist_eq = histogram_equalize(imYIQ[:, :, 0])
         return yiq2rgb(imYIQ), hist_orig, hist_eq
     else:
         # this is an intensity image
         im = (im_orig*255).round().astype(np.uint8)
-        hist_orig = np.histogram(im, bins=256)[0]
+        hist_orig, bins = np.histogram(im, bins=256)
         hist_cumsum = np.cumsum(hist_orig)
         hist_cumsum_norm = np.round(hist_cumsum * (255 / im.size))
-        im_eq = np.interp(im.reshape(1,-1), np.arange(256), hist_cumsum_norm).reshape(im.shape).astype(np.uint8)
+        im_eq = np.interp(im.reshape(1, -1), bins[:-1], hist_cumsum_norm).reshape(im.shape).astype(np.uint8)
         hist_eq = np.histogram(im_eq, bins=256)[0]
+
+        plt.figure()
+        plt.subplot(2,2,1)
+        plt.imshow(im_orig, cmap=plt.cm.gray)
+        plt.subplot(2,2,2)
+        plt.imshow(im_eq, cmap=plt.cm.gray)
+        plt.subplot(2, 2, 3)
+        plt.plot(hist_cumsum, np.arange(256), np.arange(256), np.arange(256))
+        plt.subplot(2, 2, 4)
+        plt.plot(np.cumsum(hist_eq), np.arange(256), np.arange(256), np.arange(256))
+        plt.show()
+
         return (im_eq.astype(np.float32)/255), hist_orig, hist_eq
 
 
@@ -104,7 +115,7 @@ def quantize (im_orig, n_quant, n_iter):
     if im_orig.ndim == 3:
         # this is a color image- work on the Y axis
         imYIQ = rgb2yiq(im_orig)
-        imYIQ[:, :, 0], error = histogram_equalize(imYIQ[:, :, 0])
+        imYIQ[:, :, 0], error = quantize(imYIQ[:, :, 0], n_quant, n_iter)
         return yiq2rgb(imYIQ), error
     else:
         # this is an intensity image
@@ -118,7 +129,7 @@ def quantize (im_orig, n_quant, n_iter):
         error = []
         q = None
         z = None
-        for it in range(n_iter):
+        for it in range(n_iter-1):
             new_z = find_z(hist_orig, hist_cumsum, q)
             q = find_q(zpz, hist_orig, hist_cumsum, new_z)
             if (np.all(z==new_z)):

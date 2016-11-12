@@ -11,12 +11,18 @@ im = sol1.read_image('C:\\Users\\Maor\\Pictures\\head-shot.jpg', sol1.REP_GREY)
 # pixs_per_seg = im.size / 5
 # a=np.where(hist_cumsum <= pixs_per_seg)
 # a=a[0][-1]
-im_q, err = sol1.quantize(im, 5, 10)
-plt.plot(err)
-plt.show()
-plt.imshow(im_q, cmap=plt.cm.gray)
+# im_q, err = sol1.quantize(im, 5, 10)
+# plt.plot(err)
+# plt.show()
+# plt.imshow(im_q, cmap=plt.cm.gray)
 
 imc = sol1.read_image('C:\\Users\\Maor\\Pictures\\head-shot.jpg', sol1.REP_RGB)
+for i in range(1,11):
+    plt.subplot(5,2,i)
+    plt.imshow(sol1.quantize(im, i, 10)[0], cmap=plt.cm.gray)
+plt.show()
+
+
 im_eq, hior, hieq = sol1.histogram_equalize(im)
 imc_eq, hior, hieq = sol1.histogram_equalize(imc)
 plt.subplot(2,2,1)
