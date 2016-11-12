@@ -62,11 +62,11 @@ def histogram_equalize(im_orig):
     else:
         # this is an intensity image
         im = (im_orig*255).round().astype(np.uint8)
-        hist_orig = np.histogram(im, bins=256)
-        hist_cumsum = np.cumsum(hist_orig[0])
+        hist_orig = np.histogram(im, bins=256)[0]
+        hist_cumsum = np.cumsum(hist_orig)
         hist_cumsum_norm = np.round(hist_cumsum * (255 / im.size))
         im_eq = np.interp(im.reshape(1,-1), np.arange(256), hist_cumsum_norm).reshape(im.shape).astype(np.uint8)
-        hist_eq = np.histogram(im_eq, bins=256)
+        hist_eq = np.histogram(im_eq, bins=256)[0]
         return (im_eq.astype(np.float32)/255), hist_orig, hist_eq
 
 
@@ -74,25 +74,32 @@ def histogram_equalize(im_orig):
 def quantize (im_orig, n_quant, n_iter):
 
     # inner function - find the next segment division
-    def find_z(hist, q=None):
-        if (q is None):
+    def find_z(hist, hist_cumsum, q=None):
+        if q is None:
             # find initial z
-            hist_cumsum = np.cumsum(hist_orig)
             pixs_per_seg = im.size / n_quant
-            return [np.where(hist_cumsum <= (i + 1) * pixs_per_seg)[-1] for i in range(n_quant)]
+            nz = [np.where(hist_cumsum >= i * pixs_per_seg)[0][0] for i in range(n_quant)]
+            nz.append(256)
+            return nz
         else:
-            z = [0]
-            z.append(np.mean(np.row_concat(q, q), axis=1))
-            z.append(256)
-            return z
+            nz = np.zeros(n_quant+1)
+            nz[1:-1] = np.round((np.mean(np.row_stack((q[1:], q[:-1])), axis=0)))
+            nz[-1] = 256
+            return nz
 
     # inner function - find the next quantize values for each segment
-    def find_q(hist, z):
-        pass
+    def find_q(zpz, hist, hist_cumsum, z):
+        return [np.round(np.sum(zpz[z[zi]:z[zi+1]]) / (hist_cumsum[z[zi+1]-1]-hist_cumsum[z[zi]]+hist[z[zi]])) for zi in range(len(z[:-1]))]
 
     # find the current error
     def calc_error(hist, z, q):
-        pass
+        return np.sum(hist * np.power(np.arange(256)-calc_color_map(z, q), 2))
+
+    def calc_color_map(z, q):
+        color_map = np.zeros(256)
+        for i in range(n_quant):
+            color_map[z[i]:z[i + 1]] = q[i]
+        return color_map
 
     if im_orig.ndim == 3:
         # this is a color image- work on the Y axis
@@ -103,26 +110,24 @@ def quantize (im_orig, n_quant, n_iter):
         # this is an intensity image
 
         im = (im_orig * 255).round().astype(np.uint8)
-        hist_orig = np.histogram(im, bins=256)
+        hist_orig = np.histogram(im, bins=256)[0]
+        hist_cumsum = np.cumsum(hist_orig)
+        zpz = hist_orig * np.arange(256)
 
         # start iterating
         error = []
         q = None
         z = None
         for it in range(n_iter):
-            new_z = find_z(hist_orig, q)
-            q = find_q(hist_orig, new_z)
+            new_z = find_z(hist_orig, hist_cumsum, q)
+            q = find_q(zpz, hist_orig, hist_cumsum, new_z)
             if (np.all(z==new_z)):
                 # converged
                 z = new_z
                 break
-            error.append(calc_error(hist_orig, z, q))
             z = new_z
+            error.append(calc_error(hist_orig, z, q))
 
-        color_map = np.zeros(256)
-        for i in range(n_quant+1):
-            color_map[z[i]:z[i+1]] = q[i]
-
-        im_quant = np.interp(im.reshape(1, -1), np.arange(256), color_map).reshape(im.shape).astype(np.float32) / 255
+        im_quant = np.interp(im.reshape(1, -1), np.arange(256), calc_color_map(z,q)).reshape(im.shape).astype(np.float32) / 255
         return im_quant, error
 
