@@ -19,7 +19,7 @@ def read_image(filename, representation):
         return im.astype(np.float32) / 255
     elif (representation == REP_GREY) & (im.ndim == 3):
         return rgb2gray(im).astype(np.float32)
-    elif representation == REP_RGB: # assuming we are not asked to convert grey to rgb
+    elif representation == REP_RGB:  # assuming we are not asked to convert grey to rgb
         return im.astype(np.float32) / 255
     else:
         raise Exception('Unsupported representation: {0}'.format(representation))
@@ -43,13 +43,17 @@ def convert_rep(im, transmat):
 # input and output are float32 in [0,1]
 def rgb2yiq(imRGB):
     # TODO - can make this matrix a constant
-    transmat = np.array([0.299, 0.587, 0.114, 0.596, -0.275, -0.321, 0.212, -0.523, 0.311]).reshape(3,3)
+    transmat = np.array([0.299, 0.587, 0.114, 0.596, -0.275, -0.321, 0.212, -0.523, 0.311], dtype=np.float32).reshape(3, 3)
     return convert_rep(imRGB, transmat)
 
 
 def yiq2rgb(imYIQ):
-    transmat = np.array([1, 0.956, 0.621, 1, -0.272, -0.647, 1, -1.106, 1.703]).reshape(3,3)
-    return convert_rep(imYIQ, transmat)
+    transmat = np.array([1, 0.956, 0.621, 1, -0.272, -0.647, 1, -1.106, 1.703], dtype=np.float32).reshape(3, 3)
+    converted_im = convert_rep(imYIQ, transmat)
+    # clip t range [0,255]
+    converted_im[converted_im < 0] = 0
+    converted_im[converted_im > 1] = 1
+    return converted_im
 
 # return [im_eq, hist_orig, hist_eq]
 def histogram_equalize(im_orig):
@@ -64,19 +68,15 @@ def histogram_equalize(im_orig):
         hist_orig, bins = np.histogram(im, bins=256)
         hist_cumsum = np.cumsum(hist_orig)
         hist_cumsum_norm = np.round(hist_cumsum * (255.0 / im.size))
+        # stretch hist_cumsum_norm
+        # histcumsum = hist_cumsum_norm
+        # cm = np.where(hist_cumsum_norm > 0)[0][0]
+        # hist_cumsum_norm = np.round(255 * (hist_cumsum_norm - cm) / (255.0 - cm))
+        # plt.plot(histcumsum,  np.arange(256), hist_cumsum_norm,  np.arange(256))
+
+        # reinterp image
         im_eq = np.interp(im.reshape(1, -1), bins[:-1], hist_cumsum_norm).reshape(im.shape).astype(np.uint8)
         hist_eq = np.histogram(im_eq, bins=256)[0]
-
-        # plt.figure()
-        # plt.subplot(2,2,1)
-        # plt.imshow(im_orig, cmap=plt.cm.gray)
-        # plt.subplot(2,2,2)
-        # plt.imshow(im_eq, cmap=plt.cm.gray)
-        # plt.subplot(2, 2, 3)
-        # plt.plot(hist_cumsum, np.arange(256), np.arange(256), np.arange(256))
-        # plt.subplot(2, 2, 4)
-        # plt.plot(np.cumsum(hist_eq), np.arange(256), np.arange(256), np.arange(256))
-        # plt.show()
 
         return (im_eq.astype(np.float32)/255), hist_orig, hist_eq
 
