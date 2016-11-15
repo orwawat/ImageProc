@@ -14,6 +14,10 @@ REP_RGB = 2
 # representation - representation code, either 1 or 2 defining if the output should be either a grayscale
 # image (1) or an RGB image (2).
 # return im
+# TODO - is it possible we read float32 in [0,1] already???
+# TODO - check input data
+# TODO - run tests
+# TODO - Document, format and create README
 def read_image(filename, representation):
     im = imread(filename)  # TODO - can i use flatten or mode?
     if (representation == REP_GREY) & (im.ndim == 2):
@@ -154,3 +158,16 @@ def quantize_rgb(im_orig, n_quant, n_iter):
     # each z - is (r,g,b) vals end of segment starting from last segment
     # initial z - uniform like in 1d case - can start with the heaviest
     pass
+
+
+
+'''
+README
+
+The quantization procedure needs an initial segment division of [0..255] to segments, z. If a division
+will have a gray level segment with no pixels, the procedure will crash (Q1: Why?) - when we find q (specifically here -
+ when we find the first q), we find the weighted average of each segment. I.e, we divide by the number of pixel in the
+ segment to normalize. since one of the segments have no pixel in it, we in fact divide by 0,
+ causing our process to crash
+
+'''
