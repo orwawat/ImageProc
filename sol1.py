@@ -67,14 +67,8 @@ def histogram_equalize(im_orig):
         im = (im_orig*255).round().astype(np.uint8)
         hist_orig, bins = np.histogram(im, bins=256)
         hist_cumsum = np.cumsum(hist_orig)
-        hist_cumsum_norm = np.round(hist_cumsum * (255.0 / im.size))
-        # stretch hist_cumsum_norm
-        # histcumsum = hist_cumsum_norm
-        # cm = np.where(hist_cumsum_norm > 0)[0][0]
-        # hist_cumsum_norm = np.round(255 * (hist_cumsum_norm - cm) / (255.0 - cm))
-        # plt.plot(histcumsum,  np.arange(256), hist_cumsum_norm,  np.arange(256))
-
-        # reinterp image
+        hist_cumsum_norm = np.round(hist_cumsum * (255.0 / im.size))  # normalizing and stretching linearly
+        # reinterpret image
         im_eq = np.interp(im.reshape(1, -1), bins[:-1], hist_cumsum_norm).reshape(im.shape).astype(np.uint8)
         hist_eq = np.histogram(im_eq, bins=256)[0]
 
@@ -87,7 +81,7 @@ def quantize (im_orig, n_quant, n_iter):
     # inner function - find the next segment division
     def find_z(hist, hist_cumsum, q=None):
         if q is None:
-            # find initial z
+            # find initial z - equal weighted segments
             pixs_per_seg = im.size / n_quant
             nz = [np.where(hist_cumsum >= i * pixs_per_seg)[0][0] for i in range(n_quant)]
             nz.append(256)
@@ -132,7 +126,7 @@ def quantize (im_orig, n_quant, n_iter):
         for it in range(n_iter-1):
             new_z = find_z(hist_orig, hist_cumsum, q)
             q = find_q(zpz, hist_orig, hist_cumsum, new_z)
-            if (np.all(z==new_z)):
+            if np.all(z == new_z):
                 # converged
                 z = new_z
                 break
@@ -142,7 +136,13 @@ def quantize (im_orig, n_quant, n_iter):
         im_quant = np.interp(im.reshape(1, -1), np.arange(256), calc_color_map(z,q)).reshape(im.shape).astype(np.float32) / 255
         return im_quant, error
 
-# uses lloyd algorithm for clustering (k-means) and euclidean metric
+# What we did in the 1d case was essentially Lloyds alg. for k-means clustering.
+# To do the same here, we need to initialize the first centroids somehow, and then repeat the process using
+# euclidean distance as our metric.
+# Although there are more efficient implementations (like scikit.cluster.kmeans) for clustering (which uses
+# randomized centroids and compares several different initializations), I will implement it on my own.
+# For initialization (in order to be deterministic), I will use something similar to median-cut in the 3d histogram.
+# Also, I will use exhaustive search (and not something more efficient but more complex like Voronoi tessellations)
 # return [im_quant, error]
 def quantize_rgb (im_orig, n_quant, n_iter):
     # each z - is (r,g,b) vals end of segment starting from last segment
