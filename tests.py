@@ -30,6 +30,7 @@ im = sol1.read_image('C:\\Users\\Maor\\Pictures\\head-shot.jpg', sol1.REP_GREY)
 
 # plt.figure()
 imc = sol1.read_image('C:\\Users\\Maor\\Pictures\\head-shot.jpg', sol1.REP_RGB)
+sol1.quantize_rgb(imc, 5, 10)
 # # for i in range(1,11):
 # #     plt.subplot(5,2,i)
 # #     plt.imshow(sol1.quantize(im, i, 10)[0], cmap=plt.cm.gray)

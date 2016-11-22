@@ -3,6 +3,7 @@ from skimage.color import rgb2gray
 from scipy.misc import imread
 import matplotlib.pyplot as plt
 from scipy.stats.mstats import mquantiles
+from math import log2
 
 # Constants
 REP_GREY = 1
@@ -168,25 +169,55 @@ For initialization (in order to be deterministic), I will use something similar 
 Also, I will use exhaustive search (and not something more efficient but more complex like Voronoi tessellations)
 '''
 
-def find_initial_segments(hist3d, n_quant):
-    pass
 
-def calc_error(hist3d, segments, centroids):
-    pass
+class RGBBox:
+    def __init__(self, ranger=(0,256), rangeg=(0,256), rangeb=(0,256)):
+        self.ranger = ranger
+        self.rangeg = rangeg
+        self.rangeb = rangeb
+    # TODO - add total weight and then use the weight to decide who to divide
+    def median_split_by_long_axis(self, im):
+        sliced_im = self.get_sliced_img(im)
+        longestaxis = np.argmax((self.ranger[1]-self.ranger[0],self.rangeg[1]-self.rangeg[0], self.rangeb[1]-self.rangeb[0]))
+        median_in_axis = np.median(sliced_im[longestaxis,:])
+        if longestaxis == 0:
+            return RGBBox((self.ranger[0], median_in_axis), self.rangeb, self.rangeb), \
+                    RGBBox((median_in_axis, self.ranger[1]), self.rangeb, self.rangeb)
+        elif longestaxis == 1:
+            return RGBBox(self.ranger, (self.rangeע[0], median_in_axis), self.rangeb), \
+                   RGBBox(self.ranger, (median_in_axis, self.rangeע[1]), self.rangeb)
+        else:
+            return RGBBox(self.ranger, self.rangeb, (self.rangeb[0], median_in_axis)), \
+                   RGBBox(self.ranger, self.rangeb, (median_in_axis, self.rangeb[1]))
 
-def find_new_centroids(hist3d, segments):
-    pass
+    def get_sliced_img(self, im):
+        in_r = np.logical_and(im[0, :] >= self.ranger[0], im[0, :] < self.ranger[1])
+        in_g = np.logical_and(im[1, :] >= self.rangeg[0], im[1, :] < self.rangeg[1])
+        in_b = np.logical_and(im[2, :] >= self.rangeb[0], im[2, :] < self.rangeb[1])
+        wherevec = np.logical_and(np.logical_and(in_r, in_g), in_b)
+        new_im = np.zeros((3, np.sum(wherevec)))
+        new_im[0, :] = im[0, wherevec]
+        new_im[1, :] = im[1, wherevec]
+        new_im[2, :] = im[2, wherevec]
+        return new_im
 
-def find_new_segments(n_quant, hist3d, centroids=None):
-    pass
-
-def find_color_map(segments, centroids):
-    pass
 
 # return [im_quant, error]
 def quantize_rgb(im_orig, n_quant, n_iter):
-    im = (im_orig * 255).astype(np.float32)
-    hist3d = np.histogram(im, [256]*3)
+    im = (im_orig * 255).astype(np.uint8)
+    im = np.transpose(im, (2, 0, 1))
+    im = im.reshape(3, -1)
+    #hist_r, hist_g, hist_b = np.histogram(im[:,:,0], 256)[0], np.histogram(im[:,:,1], 256)[0], np.histogram(im[:,:,2], 256)[0]
+
+    boxes = [RGBBox()]
+    while len(boxes) < np.ceil(log2(n_quant)):
+        newboxes = []
+        for box in boxes:
+            box1, box2 = box.median_split_by_long_axis(im)
+            newboxes.append([box1, box2])
+        boxes = newboxes
+
+    # now merge if there are too many
 
     # start iterating
     error = []
