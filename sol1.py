@@ -92,6 +92,14 @@ def histogram_equalize(im_orig):
 
         return (im_eq.astype(np.float32) / 255), hist_orig, hist_eq  # TODO - make sure still float32!
 
+# TODO - zpz is not a good name
+## TODO - use arange - not for loops!!!
+# inner function - find the next quantize values for each segment
+def find_q(zpz, hist, hist_cumsum, z):
+    # TODO - check no division in 0 here because of merged z!
+    return [np.around(
+        np.sum(zpz[z[zi]:z[zi + 1]]) / (hist_cumsum[z[zi + 1] - 1] - hist_cumsum[z[zi]] + hist[z[zi]]))
+            for zi in range(len(z[:-1]))]
 
 # return [im_quant, error]
 def quantize(im_orig, n_quant, n_iter):
@@ -109,13 +117,7 @@ def quantize(im_orig, n_quant, n_iter):
             nz[1:-1] = np.around((np.mean(np.row_stack((q[1:], q[:-1])), axis=0)))
             nz[-1] = 256
             return nz
-# TODO - zpz is not a good name
-## TODO - use arange - not for loops!!!
-    # inner function - find the next quantize values for each segment
-    def find_q(zpz, hist, hist_cumsum, z):
-        # TODO - check no division in 0 here because of merged z!
-        return [np.around(np.sum(zpz[z[zi]:z[zi + 1]]) / (hist_cumsum[z[zi + 1] - 1] - hist_cumsum[z[zi]] + hist[z[zi]]))
-                for zi in range(len(z[:-1]))]
+
 
     # find the current error
     def calc_error(hist, z, q):
@@ -181,17 +183,29 @@ class RGBBox:
         sliced_im = self.get_sliced_img(im)
         longestaxis = np.argmax((self.ranger[1]-self.ranger[0],self.rangeg[1]-self.rangeg[0], self.rangeb[1]-self.rangeb[0]))
         sliced_im_1d = sliced_im[longestaxis,:]
-        median_in_axis_idx = np.argsort(sliced_im_1d)[len(sliced_im_1d)//2]
-        median_in_axis = sliced_im_1d[median_in_axis_idx]
+
+        if len(sliced_im_1d) == 0:
+            print("Wow")
+
+        median_in_axis = np.median(sliced_im_1d)
         if longestaxis == 0:
-            return RGBBox(median_in_axis_idx, (self.ranger[0], median_in_axis), self.rangeg, self.rangeb), \
-                    RGBBox(self.weight - median_in_axis_idx, (median_in_axis, self.ranger[1]), self.rangeg, self.rangeb)
+            if median_in_axis == self.ranger[0]:
+                median_in_axis += 1
+            sliced_weight = np.sum(sliced_im_1d < median_in_axis)
+            return RGBBox(sliced_weight, (self.ranger[0], median_in_axis), self.rangeg, self.rangeb), \
+                    RGBBox(self.weight - sliced_weight, (median_in_axis, self.ranger[1]), self.rangeg, self.rangeb)
         elif longestaxis == 1:
-            return RGBBox(median_in_axis_idx, self.ranger, (self.rangeg[0], median_in_axis), self.rangeb), \
-                   RGBBox(self.weight - median_in_axis_idx, self.ranger, (median_in_axis, self.rangeg[1]), self.rangeb)
+            if median_in_axis == self.rangeg[0]:
+                median_in_axis += 1
+            sliced_weight = np.sum(sliced_im_1d < median_in_axis)
+            return RGBBox(sliced_weight, self.ranger, (self.rangeg[0], median_in_axis), self.rangeb), \
+                   RGBBox(self.weight - sliced_weight, self.ranger, (median_in_axis, self.rangeg[1]), self.rangeb)
         else:
-            return RGBBox(median_in_axis_idx, self.ranger, self.rangeg, (self.rangeb[0], median_in_axis)), \
-                   RGBBox(self.weight - median_in_axis_idx, self.ranger, self.rangeg, (median_in_axis, self.rangeb[1]))
+            if median_in_axis == self.rangeb[0]:
+                median_in_axis += 1
+            sliced_weight = np.sum(sliced_im_1d < median_in_axis)
+            return RGBBox(sliced_weight, self.ranger, self.rangeg, (self.rangeb[0], median_in_axis)), \
+                   RGBBox(self.weight - sliced_weight, self.ranger, self.rangeg, (median_in_axis, self.rangeb[1]))
 
     def get_sliced_img(self, im):
         in_r = np.logical_and(im[0, :] >= self.ranger[0], im[0, :] < self.ranger[1])
@@ -202,7 +216,15 @@ class RGBBox:
         new_im[0, :] = im[0, wherevec]
         new_im[1, :] = im[1, wherevec]
         new_im[2, :] = im[2, wherevec]
+
+        if new_im == []:
+            print("Wow")
+
+
         return new_im
+
+    def get_vol(self):
+        return (self.ranger[1] - self.ranger[0]) * (self.rangeg[1] - self.rangeg[0]) * (self.rangeg[1] - self.rangeg[0])
 
 
 # return [im_quant, error]
@@ -213,11 +235,20 @@ def quantize_rgb(im_orig, n_quant, n_iter):
     im_uint = (im_orig * 255).astype(np.uint8)
     im = np.transpose(im_uint, (2, 0, 1))
     im = im.reshape(3, -1)
-    #hist_r, hist_g, hist_b = np.histogram(im[:,:,0], 256)[0], np.histogram(im[:,:,1], 256)[0], np.histogram(im[:,:,2], 256)[0]
+    range_im = np.arange(256)
+    hist_r = np.histogram(im_uint[:, :, 0], 256)[0]
+    hist_cumsum_r, zpz_r = np.cumsum(hist_r), hist_r * range_im
+    hist_g = np.histogram(im_uint[:, :, 1], 256)[0]
+    hist_cumsum_g, zpz_g = np.cumsum(hist_g), hist_g * range_im
+    hist_b = np.histogram(im_uint[:, :, 2], 256)[0]
+    hist_cumsum_b, zpz_b = np.cumsum(hist_b), hist_b * range_im
 
     boxes = [RGBBox(im.size / 3)]
     while len(boxes) < n_quant:
-        heviestBoxIdx = np.argmax([int(b.weight) for b in boxes])
+        weights = [int(b.weight) if b.get_vol() > 1 else 0 for b in boxes]
+        heviestBoxIdx = np.argmax(weights)
+        if weights[heviestBoxIdx] == 0:
+            print("Can't divide no more! {0} quants found".format(len(boxes)))
         box = boxes[heviestBoxIdx]
         del boxes[heviestBoxIdx]
         box1, box2 = box.median_split_by_long_axis(im)
@@ -231,7 +262,12 @@ def quantize_rgb(im_orig, n_quant, n_iter):
     for box in boxes:
         # for now, not average weight - TODO!
         print ("Range is: {0},{1},{2}".format(box.ranger, box.rangeg, box.rangeb))
-        r, g, b = np.around((box.ranger[1]-box.ranger[0]) / 2), np.around((box.rangeg[1]-box.rangeg[0]) / 2), np.around((box.rangeb[1]-box.rangeb[0]) / 2)
+        print ("Weight is: {0}".format(box.weight))
+        #r, g, b = np.around((box.ranger[1]-box.ranger[0]) / 2), np.around((box.rangeg[1]-box.rangeg[0]) / 2), np.around((box.rangeb[1]-box.rangeb[0]) / 2)
+        r = find_q(zpz_r, hist_r, hist_cumsum_r, box.ranger)
+        g = find_q(zpz_g, hist_g, hist_cumsum_g, box.rangeg)
+        b = find_q(zpz_b, hist_b, hist_cumsum_b, box.rangeb)
+
         print("R,G,B: {0},{1},{2}".format(r,g,b))
         sliced_colorMap = colorMap[box.ranger[0]:box.ranger[1], box.rangeg[0]:box.rangeg[1], box.rangeb[0]:box.rangeb[1]]
         sliced_colorMap[:, :, :, 0] = r

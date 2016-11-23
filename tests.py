@@ -30,9 +30,16 @@ import numpy as np
 
 # plt.figure()
 imc = sol1.read_image('C:\\Users\\Maor\\Pictures\\head-shot.jpg', sol1.REP_RGB)
-im_quant, error = sol1.quantize_rgb(imc, 64, 10)
-print("Error is " + str(error))
-plt.imshow(im_quant)
+error = [0] * 11
+for q in range(10):
+    plt.subplot(3,4,q+1)
+    im_quant, error[q] = sol1.quantize_rgb(imc, 2**(q+1), 10)
+    plt.imshow(im_quant)
+plt.subplot(3,4,11)
+plt.imshow(imc)
+plt.subplot(3,4,12)
+plt.plot(np.arange(11), np.log(np.asarray(error)))
+plt.show()
 
 # # for i in range(1,11):
 # #     plt.subplot(5,2,i)
