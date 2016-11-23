@@ -1,3 +1,18 @@
+# TODO - is it possible we read float32 in [0,1] already???
+# TODO - check input data
+# TODO - run tests
+# TODO - Document, format and create README
+# TODO - wrap in try catch?
+# TODO - check in quantization division in 0
+# TODO - remove prints
+# TODO - check against avichai
+# TODO - make sure error is squared
+# TODO  - look at submission guidlines - make sure no limit on chars
+# TODO - renames!!
+# TODO - constants
+## TODO - use arange - not for loops!!!
+# TODO - make the bonus question more efficient
+# TODO - go over the questions to make sure I addressed everything
 import numpy as np
 from skimage.color import rgb2gray
 from scipy.misc import imread
@@ -10,31 +25,34 @@ RGB2YIQ_MAT = np.array([0.299, 0.587, 0.114, 0.596, -0.275, -0.321, 0.212, -0.52
                        dtype=np.float32).reshape(3, 3)
 YIQ2RGB_MAT = np.array([1, 0.956, 0.621, 1, -0.272, -0.647, 1, -1.106, 1.703], dtype=np.float32).reshape(3, 3)
 
+'''
+    Reads a given image file and converts it into a given representation
+        filename - string containing the image filename to read.
+        representation - representation code, either 1 or 2 defining if the output should be either a grayscale
+                        image (1) or an RGB image (2).
+        return im as np.float32 in range [0,1]
+'''
 
-# Reads a given image file and converts it into a given representation
-# filename - string containing the image filename to read.
-# representation - representation code, either 1 or 2 defining if the output should be either a grayscale
-# image (1) or an RGB image (2).
-# return im
-# TODO - is it possible we read float32 in [0,1] already???
-# TODO - check input data
-# TODO - run tests
-# TODO - Document, format and create README
-# TODO - wrap in try catch?
-# TODO - check in quantization division in 0
-# TODO - remove prints
-# TODO - check against avichai
-# TODO - make sure error is squared
+
 def read_image(filename, representation):
-    im = imread(filename)  # TODO - can i use flatten or mode?
+    im = imread(filename)
     if (representation == REP_GREY) & (im.ndim == 2):
         return im.astype(np.float32) / 255
     elif (representation == REP_GREY) & (im.ndim == 3):
-        return rgb2gray(im).astype(np.float32) # TODO - test if is in [0,1]
+        return rgb2gray(im).astype(np.float32)
     elif representation == REP_RGB:  # assuming we are not asked to convert grey to rgb
         return im.astype(np.float32) / 255
     else:
         raise Exception('Unsupported representation: {0}'.format(representation))
+
+
+'''
+    utilizes read_image to display a given image file in a given representation.
+    opens a new figure for that.
+    filename - string containing the image filename to read.
+    representation - representation code, either 1 or 2 defining if the output should be either a grayscale
+                        image (1) or an RGB image (2).
+'''
 
 
 def imdisplay(filename, representation):
@@ -48,90 +66,168 @@ def imdisplay(filename, representation):
     plt.show()
 
 
+'''
+    Helper function that takes in a 3d image, and returns a new 3d image of the same shape exactly,
+    where for every pixel NewIm[i,j,:]= transmat * Im[i,j,:]
+
+    transmat is a 3*3 tmatrix
+'''
+
+
 def convert_rep(im, transmat):
-    impermuted = np.transpose(im, (2, 0, 1))
+    impermuted = np.transpose(im, (2, 0, 1))  # change order of axes so that the main axis is the channels,
+    # than rows than columns
     imreshaped = impermuted.reshape(3, -1)
     imconverted = np.matmul(transmat, imreshaped)
     return imconverted.reshape(impermuted.shape).transpose(1, 2, 0).astype(np.float32)
 
 
-# input and output are float32 in [0,1]
+'''
+    Transform an RGB image into the YIQ color space
+    input and output are float32 in [0,1]
+    return image in YIQ
+'''
+
+
 def rgb2yiq(imRGB):
     return convert_rep(imRGB, RGB2YIQ_MAT)
+
+
+'''
+    Transform an RGB image into the YIQ color space
+    input is float32 in [0,1], output is float32 but may not be clipped to range [0,1]
+    return image in RGB
+'''
 
 
 def yiq2rgb(imYIQ):
     return convert_rep(imYIQ, YIQ2RGB_MAT)  # may not be in [0,1] range!
 
 
+'''
+    Helper function to transform yiq to rgb, but clips the result to range [0,1]
+'''
+
+
 def clipped_yiq2rgb(imYIQ):
     return np.clip(yiq2rgb(imYIQ), a_min=0, a_max=1.0)  # clipping to [0,1]
 
+'''
+    Performs histogram equalization of a given grayscale or RGB image
+    If an RGB image is given, the following equalization procedure only operate on the Y channel of
+    the corresponding YIQ image and then convert back from YIQ to RGB. Moreover, the outputs hist_orig
+    and hist_eq are the histogram of the Y channel only.
+    im_orig - is the input grayscale or RGB float32 image with values in [0, 1].
 
-# return [im_eq, hist_orig, hist_eq]
+    Returns:
+        im_eq - is the equalized image. grayscale or RGB float32 image with values in [0, 1].
+        hist_orig - is a 256 bin histogram of the original image (array with shape (256,) ).
+        hist_eq - is a 256 bin histogram of the equalized image (array with shape (256,) ).
+'''
+
+
 def histogram_equalize(im_orig):
     if im_orig.ndim == 3:
-        # this is a color image- work on the Y axis
+        # this is a color image - work on the Y axis
         imYIQ = rgb2yiq(im_orig)
         imYIQ[:, :, 0], hist_orig, hist_eq = histogram_equalize(imYIQ[:, :, 0])
         return clipped_yiq2rgb(imYIQ), hist_orig, hist_eq
     else:
         # this is an intensity image
         im = np.around(im_orig * 255).astype(np.uint8)
-        hist_orig, bins = np.histogram(im, bins=256) # TODO - make sure doesn't suppose to be 255
+        hist_orig, bins = np.histogram(im, bins=256)  # TODO - make sure doesn't suppose to be 255
         hist_cumsum = np.cumsum(hist_orig)
-        hist_cumsum_norm = np.around(hist_cumsum * (255.0 / im.size))  # normalizing and stretching linearly
+        hist_cumsum_norm = np.around(hist_cumsum * (255.0 / im.size))  # normalizing the cumsum
 
-        # stretch if needed: TODO - test
+        # stretch if needed: (to have color map stretch between 0 to 255)
         if hist_cumsum_norm[0] != 0 or hist_cumsum_norm[-1] != 255:  # in fact, hist_cumsum_norm[-1] always is 255
-            cm = hist_cumsum_norm[0]   # minimal value in normed cumsum which should be stretched to 0
+            cm = hist_cumsum_norm[0]  # minimal value in normed_cumsum which should be stretched to 0
             hist_cumsum_norm = np.around(((hist_cumsum_norm - cm) * 255) / (hist_cumsum_norm[-1] - cm))
+            if (hist_cumsum.min() < 0):
+                raise Exception("Error in stretching the normalized histogram")
 
         # reinterpret image
         im_eq = np.interp(im.reshape(1, -1), bins[:-1], hist_cumsum_norm).reshape(im.shape).astype(np.uint8)
         hist_eq = np.histogram(im_eq, bins=256)[0]
 
-        return (im_eq.astype(np.float32) / 255), hist_orig, hist_eq  # TODO - make sure still float32!
+        return (im_eq.astype(np.float32) / 255), hist_orig, hist_eq
 
-# TODO - zpz is not a good name
-## TODO - use arange - not for loops!!!
-# inner function - find the next quantize values for each segment
+
+'''
+    Inner function - find the next quantize values for each segment
+
+    Inputs:
+        zpz is the weighted histogram - the histogram of the image multiplied (per element) in the value of the bin
+        hist is the original histogram
+        his_cumsum - the cumsum of the hist
+        z - the segments in which to find q's. array like
+
+    Outputs:
+        q - array like of length len(z)-1, q[0] is the q in segment (z[0]:z[1]) etc.
+'''
 def find_q(zpz, hist, hist_cumsum, z):
-    # TODO - check no division in 0 here because of merged z!
     lenq = len(z) - 1
     q = np.zeros(lenq)
     if lenq < 1 or z[1] == 0:
         raise Exception("Invalid segments")
     for zi in range(lenq):
         denominator = (hist_cumsum[z[zi + 1] - 1] - hist_cumsum[z[zi]] + hist[z[zi]])
-        if denominator == 0:
-            print ("fuck!")
+        if denominator == 0:  # To avoid division in zero when segments converge
             q[zi] = z[zi]
             continue
         nominator = np.sum(zpz[z[zi]:z[zi + 1]])
         q[zi] = np.around(nominator / denominator)
     return q
 
-# return [im_quant, error]
+'''
+    Helper function to find segments from given centroids (1d).
+    If centroids are None, return segments s.t for each segment, the number of pixels is (approx.)
+    total_num_pixels/n_quants
+
+    Inputs:
+        n_quant - number of quants
+        hist_cumsum - the histogram cumsum
+        q - the centroids. array like
+
+    Outputs:
+        z - array like of length n_quant + 1. z[0]=0,z[-1]=256 always. z is monotonically increases.
+            represents the segments in the histogram
+'''
+def find_z(n_quant, hist_cumsum, q=None):
+    if q is None:
+        # find initial z - equal weighted segments
+        pixs_per_seg = hist_cumsum[-1] / n_quant
+        nz = [0] + [np.where(hist_cumsum <= (i + 1) * pixs_per_seg)[0][-1] for i in range(n_quant)]
+        return nz
+    else:
+        nz = np.zeros(n_quant + 1)
+        nz[1:-1] = np.around((np.mean(np.row_stack((q[1:], q[:-1])), axis=0)))
+        nz[-1] = 256
+        return nz.astype(np.uint32)
+
+'''
+    Performs optimal quantization of a given grayscale or RGB image
+    If an RGB image is given, the following quantization procedure only operate on the Y channel of
+    the corresponding YIQ image and then convert back from YIQ to RGB.
+
+    Inputs:
+        im_orig - is the input grayscale or RGB image to be quantized (float32 image with values in [0, 1]).
+        n_quant - is the number of intensities your output im_quant image should have.
+        n_iter - is the maximum number of iterations of the optimization procedure (may converge earlier.)
+
+    Outputs:
+        im_quant - is the quantize output image.
+        error - is an array with shape (n_iter,) (or less) of the total intensities error for each iteration in the
+                   quantization procedure.
+
+'''
 def quantize(im_orig, n_quant, n_iter):
-    # inner function - find the next segment division
-    def find_z(n_quant, hist_cumsum, q=None):
-        if q is None:
-            # find initial z - equal weighted segments
-            pixs_per_seg = im.size / n_quant  # TODO - make sure not int division
-            nz = [0] + [np.where(hist_cumsum <= (i+1) * pixs_per_seg)[0][-1] for i in range(n_quant)]
-            return nz
-        else:
-            nz = np.zeros(n_quant + 1)
-            nz[1:-1] = np.around((np.mean(np.row_stack((q[1:], q[:-1])), axis=0)))
-            nz[-1] = 256
-            return nz.astype(np.uint32)
 
-
-    # find the current error
+    # find the current error (from segment division and centroids)
     def calc_error(hist, z, q):
-        return np.sum(hist * np.power(np.arange(256) - calc_color_map(z, q), 2)) # TODO - make sure not sqrt of this
+        return np.sum(hist * np.power(np.arange(256) - calc_color_map(z, q), 2))  # TODO - make sure not sqrt of this
 
+    # inner function - get color map from segments division and centroids
     def calc_color_map(z, q):
         color_map = np.zeros(256)
         for i in range(n_quant):
@@ -145,7 +241,6 @@ def quantize(im_orig, n_quant, n_iter):
         return yiq2rgb(imYIQ), error  # Not clipped as instructed!
     else:
         # this is an intensity image
-
         im = np.around(im_orig * 255).astype(np.uint8)
         hist_orig = np.histogram(im, bins=256)[0]
         hist_cumsum = np.cumsum(hist_orig)
@@ -169,32 +264,48 @@ def quantize(im_orig, n_quant, n_iter):
             np.float32) / 255
         return im_quant, error
 
-# TODO - median cut
+
+
+# ---------------------------------------------------------------------------------
+# ---------------------------- Extra Credit section -------------------------------
+# ---------------------------------------------------------------------------------
 '''
-What we did in the 1d case was essentially Lloyds alg. for k-means clustering.
-To do the same here, we need to initialize the first centroids somehow, and then repeat the process using
-euclidean distance as our metric.
-Although there are more efficient implementations (like scikit.cluster.kmeans) for clustering (which uses
-randomized centroids and compares several different initializations), I will implement it on my own.
-For initialization (in order to be deterministic), I will use something similar to median-cut in the 3d histogram.
-Also, I will use exhaustive search (and not something more efficient but more complex like Voronoi tessellations)
+Notes:
+    What we did in the 1d case was essentially Lloyds alg. for k-means clustering.
+    To do the same here, we need to initialize the first centroids somehow, and then repeat the process using
+    euclidean distance as our metric.
+    Although there are more efficient implementations (like scikit.cluster.kmeans) for clustering (which uses
+    randomized centroids and compares several different initializations), I will implement it on my own.
+    For initialization (in order to be deterministic), I will use something similar to median-cut in the 3d histogram.
+    Also, I will use exhaustive search (and not something more efficient but more complex like Voronoi tessellations)
 '''
 
 
+'''
+    TODO
+'''
 class RGBBox:
-    def __init__(self, weight, ranger=(0,256), rangeg=(0,256), rangeb=(0,256)):
+
+    '''
+        TODO
+    '''
+    def __init__(self, weight, ranger=(0, 256), rangeg=(0, 256), rangeb=(0, 256)):
         self.weight = weight
         self.ranger = ranger
         self.rangeg = rangeg
         self.rangeb = rangeb
 
+    '''
+    TODO
+    '''
     def median_split_by_long_axis(self, im):
         sliced_im = self.get_sliced_img(im)
-        longestaxis = np.argmax((self.ranger[1]-self.ranger[0],self.rangeg[1]-self.rangeg[0], self.rangeb[1]-self.rangeb[0]))
-        sliced_im_1d = sliced_im[longestaxis,:]
+        longestaxis = np.argmax(
+            (self.ranger[1] - self.ranger[0], self.rangeg[1] - self.rangeg[0], self.rangeb[1] - self.rangeb[0]))
+        sliced_im_1d = sliced_im[longestaxis, :]
 
         if len(sliced_im_1d) == 0:
-            print("Wow")
+            raise Exception("Error in median split - an empty image channel 1d received")
 
         median_in_axis = int(np.median(sliced_im_1d))
         if longestaxis == 0:
@@ -202,7 +313,7 @@ class RGBBox:
                 median_in_axis += 1
             sliced_weight = np.sum(sliced_im_1d < median_in_axis)
             return RGBBox(sliced_weight, (self.ranger[0], median_in_axis), self.rangeg, self.rangeb), \
-                    RGBBox(self.weight - sliced_weight, (median_in_axis, self.ranger[1]), self.rangeg, self.rangeb)
+                   RGBBox(self.weight - sliced_weight, (median_in_axis, self.ranger[1]), self.rangeg, self.rangeb)
         elif longestaxis == 1:
             if median_in_axis == self.rangeg[0]:
                 median_in_axis += 1
@@ -216,6 +327,9 @@ class RGBBox:
             return RGBBox(sliced_weight, self.ranger, self.rangeg, (self.rangeb[0], median_in_axis)), \
                    RGBBox(self.weight - sliced_weight, self.ranger, self.rangeg, (median_in_axis, self.rangeb[1]))
 
+    '''
+        TODO
+    '''
     def get_sliced_img(self, im):
         in_r = np.logical_and(im[0, :] >= self.ranger[0], im[0, :] < self.ranger[1])
         in_g = np.logical_and(im[1, :] >= self.rangeg[0], im[1, :] < self.rangeg[1])
@@ -227,20 +341,25 @@ class RGBBox:
         new_im[2, :] = im[2, wherevec]
 
         if new_im == []:
-            print("Wow")
-
+            raise Exception("Failed to get sliced image - an empty image is received")
 
         return new_im
 
+    '''
+        TODO
+    '''
     def get_vol(self):
         return (self.ranger[1] - self.ranger[0]) * (self.rangeg[1] - self.rangeg[0]) * (self.rangeg[1] - self.rangeg[0])
 
 
 # return [im_quant, error]
+'''
+    TODO
+'''
 def quantize_rgb(im_orig, n_quant, n_iter):
     if im_orig.ndim != 3:
         raise Exception("Can only quantize rgb images")
-    if n_quant > (256**3) / 2:
+    if n_quant > (256 ** 3) / 2:
         raise Exception("Too many quants -can't quantize")
 
     im_uint = (im_orig * 255).astype(np.uint8)
@@ -255,18 +374,19 @@ def quantize_rgb(im_orig, n_quant, n_iter):
     hist_cumsum_b, zpz_b = np.cumsum(hist_b), hist_b * range_im
 
     boxes = [RGBBox(im.size / 3)]
-    min_box_vol2split = (256**3)/n_quant
-    min_weight2split = im.size / (3*n_quant)
+    min_box_vol2split = (256 ** 3) / n_quant
+    min_weight2split = im.size / (3 * n_quant)
     while len(boxes) < n_quant:
         while True:
-            weights = [int(b.weight) if (b.get_vol() > min_box_vol2split and b.weight > min_weight2split) else 0 for b in boxes]
+            weights = [int(b.weight) if (b.get_vol() > min_box_vol2split and b.weight > min_weight2split) else 0 for b
+                       in boxes]
             heviestBoxIdx = np.argmax(weights)
             if weights[heviestBoxIdx] == 0:
-                print("dividing min size")
+                # TODO - comment "dividing min size"
                 min_box_vol2split = np.round(min_box_vol2split / 2)
                 min_weight2split = np.round(min_weight2split / 2)
                 if min_box_vol2split == 1:
-                    print("Can't divide no more! {0} quants found".format(len(boxes)))
+                    # TODO - comment - "Can't divide no more! {0} quants found".format(len(boxes)))
                     heviestBoxIdx = -1
                     break
             else:
@@ -278,27 +398,20 @@ def quantize_rgb(im_orig, n_quant, n_iter):
         box1, box2 = box.median_split_by_long_axis(im)
         boxes = boxes + [box1, box2]
 
-
-    print ("Total sum is: {0}, expected sum is: {1}".format(np.sum([b.weight for b in boxes]), im_orig.size/3))
     # now, find the centeroid for each box, and prepare the color map
-    # q = np.zeros((1, len(boxes), 3))
     colorMap = np.zeros((256, 256, 256, 3), dtype=np.uint8)
     for box in boxes:
-        # for now, not average weight - TODO!
-        # print ("Range is: {0},{1},{2}".format(box.ranger, box.rangeg, box.rangeb))
-        # print ("Weight is: {0}".format(box.weight))
-        #r, g, b = np.around((box.ranger[1]-box.ranger[0]) / 2), np.around((box.rangeg[1]-box.rangeg[0]) / 2), np.around((box.rangeb[1]-box.rangeb[0]) / 2)
         r = find_q(zpz_r, hist_r, hist_cumsum_r, box.ranger)[0]
         g = find_q(zpz_g, hist_g, hist_cumsum_g, box.rangeg)[0]
         b = find_q(zpz_b, hist_b, hist_cumsum_b, box.rangeb)[0]
 
-        # print("R,G,B: {0},{1},{2}".format(r,g,b))
-        sliced_colorMap = colorMap[box.ranger[0]:box.ranger[1], box.rangeg[0]:box.rangeg[1], box.rangeb[0]:box.rangeb[1]]
+        sliced_colorMap = colorMap[box.ranger[0]:box.ranger[1], box.rangeg[0]:box.rangeg[1],
+                          box.rangeb[0]:box.rangeb[1]]
         sliced_colorMap[:, :, :, 0] = r
         sliced_colorMap[:, :, :, 1] = g
         sliced_colorMap[:, :, :, 2] = b
-        if r < 0 or g < 0 or b <0 or r > 255 or g > 255 or b > 255:
-            print (r,' ',g,' ',b)
+        if r < 0 or g < 0 or b < 0 or r > 255 or g > 255 or b > 255:
+            raise Exception("Failed to quantize - got illegal r,g,b values")
 
     im_quant = np.zeros(im_uint.shape, dtype=np.uint8)
     im_quant[:, :, 0] = colorMap[im_uint[:, :, 0], im_uint[:, :, 1], im_uint[:, :, 2], 0]
@@ -307,18 +420,3 @@ def quantize_rgb(im_orig, n_quant, n_iter):
     distmat = np.sqrt(np.sum(np.power(im_orig - im_quant, 2), axis=2))
     error = np.sum(distmat)
     return im_quant.astype(np.float32) / 255, error
-
-
-
-'''
-README
-
-The quantization procedure needs an initial segment division of [0..255] to segments, z. If a division
-will have a gray level segment with no pixels, the procedure will crash (Q1: Why?) - when we find q (specifically here -
- when we find the first q), we find the weighted average of each segment. I.e, we divide by the number of pixel in the
- segment to normalize. since one of the segments have no pixel in it, we in fact divide by 0,
- causing our process to crash
-
-'''
-
-# TODO -staying too much in the same box!
