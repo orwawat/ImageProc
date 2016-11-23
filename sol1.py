@@ -254,11 +254,24 @@ def quantize_rgb(im_orig, n_quant, n_iter):
     hist_cumsum_b, zpz_b = np.cumsum(hist_b), hist_b * range_im
 
     boxes = [RGBBox(im.size / 3)]
+    min_box_vol2split = (256**3)/n_quant
+    min_weight2split = im.size / (3*n_quant)
     while len(boxes) < n_quant:
-        weights = [int(b.weight) if b.get_vol() > 1 else 0 for b in boxes]
-        heviestBoxIdx = np.argmax(weights)
-        if weights[heviestBoxIdx] == 0:
-            print("Can't divide no more! {0} quants found".format(len(boxes)))
+        while True:
+            weights = [int(b.weight) if (b.get_vol() > min_box_vol2split and b.weight > min_weight2split) else 0 for b in boxes]
+            heviestBoxIdx = np.argmax(weights)
+            if weights[heviestBoxIdx] == 0:
+                print("dividing min size")
+                min_box_vol2split = np.round(min_box_vol2split / 2)
+                min_weight2split = np.round(min_weight2split / 2)
+                if min_box_vol2split == 1:
+                    print("Can't divide no more! {0} quants found".format(len(boxes)))
+                    heviestBoxIdx = -1
+                    break
+            else:
+                break
+        if heviestBoxIdx < 0:
+            break
         box = boxes[heviestBoxIdx]
         del boxes[heviestBoxIdx]
         box1, box2 = box.median_split_by_long_axis(im)
