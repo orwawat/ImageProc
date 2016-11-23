@@ -250,7 +250,7 @@ def quantize(im_orig, n_quant, n_iter):
         error = []
         q = None
         z = None
-        for it in range(n_iter - 1):
+        for it in range(n_iter):
             new_z = find_z(n_quant, hist_cumsum, q)
             q = find_q(zpz, hist_orig, hist_cumsum, new_z)
             if np.all(z == new_z):
