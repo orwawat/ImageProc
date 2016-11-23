@@ -97,9 +97,19 @@ def histogram_equalize(im_orig):
 # inner function - find the next quantize values for each segment
 def find_q(zpz, hist, hist_cumsum, z):
     # TODO - check no division in 0 here because of merged z!
-    return [np.around(
-        np.sum(zpz[z[zi]:z[zi + 1]]) / (hist_cumsum[z[zi + 1] - 1] - hist_cumsum[z[zi]] + hist[z[zi]]))
-            for zi in range(len(z[:-1]))]
+    lenq = len(z) - 1
+    q = np.zeros(lenq)
+    if lenq < 1 or z[1] == 0:
+        raise Exception("Invalid segments")
+    for zi in range(lenq):
+        denominator = (hist_cumsum[z[zi + 1] - 1] - hist_cumsum[z[zi]] + hist[z[zi]])
+        if denominator == 0:
+            print ("fuck!")
+            q[zi] = z[zi]
+            continue
+        nominator = np.sum(zpz[z[zi]:z[zi + 1]])
+        q[zi] = np.around(nominator / denominator)
+    return q
 
 # return [im_quant, error]
 def quantize(im_orig, n_quant, n_iter):
@@ -121,7 +131,7 @@ def quantize(im_orig, n_quant, n_iter):
 
     # find the current error
     def calc_error(hist, z, q):
-        return np.sum(hist * np.power(np.arange(256) - calc_color_map(z, q), 2))
+        return np.sum(hist * np.power(np.arange(256) - calc_color_map(z, q), 2)) # TODO - make sure not sqrt of this
 
     def calc_color_map(z, q):
         color_map = np.zeros(256)
@@ -187,7 +197,7 @@ class RGBBox:
         if len(sliced_im_1d) == 0:
             print("Wow")
 
-        median_in_axis = np.median(sliced_im_1d)
+        median_in_axis = int(np.median(sliced_im_1d))
         if longestaxis == 0:
             if median_in_axis == self.ranger[0]:
                 median_in_axis += 1
@@ -261,24 +271,27 @@ def quantize_rgb(im_orig, n_quant, n_iter):
     colorMap = np.zeros((256, 256, 256, 3), dtype=np.uint8)
     for box in boxes:
         # for now, not average weight - TODO!
-        print ("Range is: {0},{1},{2}".format(box.ranger, box.rangeg, box.rangeb))
-        print ("Weight is: {0}".format(box.weight))
+        # print ("Range is: {0},{1},{2}".format(box.ranger, box.rangeg, box.rangeb))
+        # print ("Weight is: {0}".format(box.weight))
         #r, g, b = np.around((box.ranger[1]-box.ranger[0]) / 2), np.around((box.rangeg[1]-box.rangeg[0]) / 2), np.around((box.rangeb[1]-box.rangeb[0]) / 2)
-        r = find_q(zpz_r, hist_r, hist_cumsum_r, box.ranger)
-        g = find_q(zpz_g, hist_g, hist_cumsum_g, box.rangeg)
-        b = find_q(zpz_b, hist_b, hist_cumsum_b, box.rangeb)
+        r = find_q(zpz_r, hist_r, hist_cumsum_r, box.ranger)[0]
+        g = find_q(zpz_g, hist_g, hist_cumsum_g, box.rangeg)[0]
+        b = find_q(zpz_b, hist_b, hist_cumsum_b, box.rangeb)[0]
 
-        print("R,G,B: {0},{1},{2}".format(r,g,b))
+        # print("R,G,B: {0},{1},{2}".format(r,g,b))
         sliced_colorMap = colorMap[box.ranger[0]:box.ranger[1], box.rangeg[0]:box.rangeg[1], box.rangeb[0]:box.rangeb[1]]
         sliced_colorMap[:, :, :, 0] = r
         sliced_colorMap[:, :, :, 1] = g
         sliced_colorMap[:, :, :, 2] = b
+        if r < 0 or g < 0 or b <0 or r > 255 or g > 255 or b > 255:
+            print (r,' ',g,' ',b)
 
     im_quant = np.zeros(im_uint.shape, dtype=np.uint8)
     im_quant[:, :, 0] = colorMap[im_uint[:, :, 0], im_uint[:, :, 1], im_uint[:, :, 2], 0]
     im_quant[:, :, 1] = colorMap[im_uint[:, :, 0], im_uint[:, :, 1], im_uint[:, :, 2], 1]
     im_quant[:, :, 2] = colorMap[im_uint[:, :, 0], im_uint[:, :, 1], im_uint[:, :, 2], 2]
-    error = np.sum(np.power(im_orig - im_quant, 2))
+    distmat = np.sqrt(np.sum(np.power(im_orig - im_quant, 2), axis=2))
+    error = np.sum(distmat)
     return im_quant.astype(np.float32) / 255, error
 
 
@@ -293,3 +306,5 @@ will have a gray level segment with no pixels, the procedure will crash (Q1: Why
  causing our process to crash
 
 '''
+
+# TODO -staying too much in the same box!
