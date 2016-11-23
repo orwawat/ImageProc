@@ -76,14 +76,14 @@ def histogram_equalize(im_orig):
         return clipped_yiq2rgb(imYIQ), hist_orig, hist_eq
     else:
         # this is an intensity image
-        im = (im_orig * 255).around().astype(np.uint8)
+        im = np.around(im_orig * 255).astype(np.uint8)
         hist_orig, bins = np.histogram(im, bins=256)
         hist_cumsum = np.cumsum(hist_orig)
         hist_cumsum_norm = np.around(hist_cumsum * (255.0 / im.size))  # normalizing and stretching linearly
 
         # stretch if needed: TODO - test
         if hist_cumsum_norm[0] != 0 or hist_cumsum_norm[-1] != 255:  # in fact, hist_cumsum_norm[-1] always is 255
-            cm = np.where(hist_cumsum_norm > 0)[0]  # first index of hist_cumsum_norm that is not 0
+            cm = hist_cumsum_norm[0]   # minimal value in normed cumsum which should be stretched to 0
             hist_cumsum_norm = np.around(((hist_cumsum_norm - cm) * 255) / (hist_cumsum_norm[-1] - cm))
 
         # reinterpret image
@@ -147,7 +147,7 @@ def quantize(im_orig, n_quant, n_iter):
     else:
         # this is an intensity image
 
-        im = (im_orig * 255).around().astype(np.uint8)
+        im = np.around(im_orig * 255).astype(np.uint8)
         hist_orig = np.histogram(im, bins=256)[0]
         hist_cumsum = np.cumsum(hist_orig)
         zpz = hist_orig * np.arange(256)
