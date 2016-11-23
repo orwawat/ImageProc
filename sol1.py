@@ -2,8 +2,6 @@ import numpy as np
 from skimage.color import rgb2gray
 from scipy.misc import imread
 import matplotlib.pyplot as plt
-from scipy.stats.mstats import mquantiles
-from math import log2
 
 # Constants
 REP_GREY = 1
@@ -24,6 +22,9 @@ YIQ2RGB_MAT = np.array([1, 0.956, 0.621, 1, -0.272, -0.647, 1, -1.106, 1.703], d
 # TODO - Document, format and create README
 # TODO - wrap in try catch?
 # TODO - check in quantization division in 0
+# TODO - remove prints
+# TODO - check against avichai
+# TODO - make sure error is squared
 def read_image(filename, representation):
     im = imread(filename)  # TODO - can i use flatten or mode?
     if (representation == REP_GREY) & (im.ndim == 2):
@@ -77,7 +78,7 @@ def histogram_equalize(im_orig):
     else:
         # this is an intensity image
         im = np.around(im_orig * 255).astype(np.uint8)
-        hist_orig, bins = np.histogram(im, bins=256)
+        hist_orig, bins = np.histogram(im, bins=256) # TODO - make sure doesn't suppose to be 255
         hist_cumsum = np.cumsum(hist_orig)
         hist_cumsum_norm = np.around(hist_cumsum * (255.0 / im.size))  # normalizing and stretching linearly
 
@@ -116,17 +117,15 @@ def quantize(im_orig, n_quant, n_iter):
     # inner function - find the next segment division
     def find_z(n_quant, hist_cumsum, q=None):
         if q is None:
-            other_z = mquantiles(hist_cumsum, [1.0 / n_quant] * n_quant) # test to see it works the same
             # find initial z - equal weighted segments
-            pixs_per_seg = im.size / n_quant # TODO - make sure not int division
-            nz = [np.where(hist_cumsum >= i * pixs_per_seg)[0][0] for i in range(n_quant)]
-            nz.append(256)
+            pixs_per_seg = im.size / n_quant  # TODO - make sure not int division
+            nz = [0] + [np.where(hist_cumsum <= (i+1) * pixs_per_seg)[0][-1] for i in range(n_quant)]
             return nz
         else:
             nz = np.zeros(n_quant + 1)
             nz[1:-1] = np.around((np.mean(np.row_stack((q[1:], q[:-1])), axis=0)))
             nz[-1] = 256
-            return nz
+            return nz.astype(np.uint32)
 
 
     # find the current error
@@ -143,7 +142,7 @@ def quantize(im_orig, n_quant, n_iter):
         # this is a color image- work on the Y axis
         imYIQ = rgb2yiq(im_orig)
         imYIQ[:, :, 0], error = quantize(imYIQ[:, :, 0], n_quant, n_iter)
-        return clipped_yiq2rgb(imYIQ), error
+        return yiq2rgb(imYIQ), error  # Not clipped as instructed!
     else:
         # this is an intensity image
 
@@ -241,6 +240,8 @@ class RGBBox:
 def quantize_rgb(im_orig, n_quant, n_iter):
     if im_orig.ndim != 3:
         raise Exception("Can only quantize rgb images")
+    if n_quant > (256**3) / 2:
+        raise Exception("Too many quants -can't quantize")
 
     im_uint = (im_orig * 255).astype(np.uint8)
     im = np.transpose(im_uint, (2, 0, 1))
