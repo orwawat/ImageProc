@@ -15,7 +15,7 @@ import numpy as np
 # converted = sol1.convert_rep(sampleim, np.eye(3))
 # print(converted)
 
-im = sol1.read_image('C:\\Users\\Maor\\Pictures\\head-shot.jpg', sol1.REP_GREY)
+# im = sol1.read_image('C:\\Users\\Maor\\Pictures\\head-shot.jpg', sol1.REP_GREY)
 
  # im = (im * 255).round().astype(np.uint8)
  # hist_orig = np.histogram(im, bins=256)[0]
@@ -30,7 +30,10 @@ im = sol1.read_image('C:\\Users\\Maor\\Pictures\\head-shot.jpg', sol1.REP_GREY)
 
 # plt.figure()
 imc = sol1.read_image('C:\\Users\\Maor\\Pictures\\head-shot.jpg', sol1.REP_RGB)
-sol1.quantize_rgb(imc, 5, 10)
+im_quant, error = sol1.quantize_rgb(imc, 64, 10)
+print("Error is " + str(error))
+plt.imshow(im_quant)
+
 # # for i in range(1,11):
 # #     plt.subplot(5,2,i)
 # #     plt.imshow(sol1.quantize(im, i, 10)[0], cmap=plt.cm.gray)

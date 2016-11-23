@@ -171,24 +171,27 @@ Also, I will use exhaustive search (and not something more efficient but more co
 
 
 class RGBBox:
-    def __init__(self, ranger=(0,256), rangeg=(0,256), rangeb=(0,256)):
+    def __init__(self, weight, ranger=(0,256), rangeg=(0,256), rangeb=(0,256)):
+        self.weight = weight
         self.ranger = ranger
         self.rangeg = rangeg
         self.rangeb = rangeb
-    # TODO - add total weight and then use the weight to decide who to divide
+
     def median_split_by_long_axis(self, im):
         sliced_im = self.get_sliced_img(im)
         longestaxis = np.argmax((self.ranger[1]-self.ranger[0],self.rangeg[1]-self.rangeg[0], self.rangeb[1]-self.rangeb[0]))
-        median_in_axis = np.median(sliced_im[longestaxis,:])
+        sliced_im_1d = sliced_im[longestaxis,:]
+        median_in_axis_idx = np.argsort(sliced_im_1d)[len(sliced_im_1d)//2]
+        median_in_axis = sliced_im_1d[median_in_axis_idx]
         if longestaxis == 0:
-            return RGBBox((self.ranger[0], median_in_axis), self.rangeb, self.rangeb), \
-                    RGBBox((median_in_axis, self.ranger[1]), self.rangeb, self.rangeb)
+            return RGBBox(median_in_axis_idx, (self.ranger[0], median_in_axis), self.rangeg, self.rangeb), \
+                    RGBBox(self.weight - median_in_axis_idx, (median_in_axis, self.ranger[1]), self.rangeg, self.rangeb)
         elif longestaxis == 1:
-            return RGBBox(self.ranger, (self.rangeע[0], median_in_axis), self.rangeb), \
-                   RGBBox(self.ranger, (median_in_axis, self.rangeע[1]), self.rangeb)
+            return RGBBox(median_in_axis_idx, self.ranger, (self.rangeg[0], median_in_axis), self.rangeb), \
+                   RGBBox(self.weight - median_in_axis_idx, self.ranger, (median_in_axis, self.rangeg[1]), self.rangeb)
         else:
-            return RGBBox(self.ranger, self.rangeb, (self.rangeb[0], median_in_axis)), \
-                   RGBBox(self.ranger, self.rangeb, (median_in_axis, self.rangeb[1]))
+            return RGBBox(median_in_axis_idx, self.ranger, self.rangeg, (self.rangeb[0], median_in_axis)), \
+                   RGBBox(self.weight - median_in_axis_idx, self.ranger, self.rangeg, (median_in_axis, self.rangeb[1]))
 
     def get_sliced_img(self, im):
         in_r = np.logical_and(im[0, :] >= self.ranger[0], im[0, :] < self.ranger[1])
@@ -204,37 +207,43 @@ class RGBBox:
 
 # return [im_quant, error]
 def quantize_rgb(im_orig, n_quant, n_iter):
-    im = (im_orig * 255).astype(np.uint8)
-    im = np.transpose(im, (2, 0, 1))
+    if im_orig.ndim != 3:
+        raise Exception("Can only quantize rgb images")
+
+    im_uint = (im_orig * 255).astype(np.uint8)
+    im = np.transpose(im_uint, (2, 0, 1))
     im = im.reshape(3, -1)
     #hist_r, hist_g, hist_b = np.histogram(im[:,:,0], 256)[0], np.histogram(im[:,:,1], 256)[0], np.histogram(im[:,:,2], 256)[0]
 
-    boxes = [RGBBox()]
-    while len(boxes) < np.ceil(log2(n_quant)):
-        newboxes = []
-        for box in boxes:
-            box1, box2 = box.median_split_by_long_axis(im)
-            newboxes.append([box1, box2])
-        boxes = newboxes
+    boxes = [RGBBox(im.size / 3)]
+    while len(boxes) < n_quant:
+        heviestBoxIdx = np.argmax([int(b.weight) for b in boxes])
+        box = boxes[heviestBoxIdx]
+        del boxes[heviestBoxIdx]
+        box1, box2 = box.median_split_by_long_axis(im)
+        boxes = boxes + [box1, box2]
 
-    # now merge if there are too many
 
-    # start iterating
-    error = []
-    centroids = None
-    segments = None
-    for it in range(n_iter - 1):
-        new_segments = find_new_segments(n_quant, hist3d, centroids)
-        centroids = find_new_centroids(hist3d, segments)
-        if np.all(segments == new_segments):
-            # converged
-            segments = new_segments
-            break
-        segments = new_segments
-        error.append(calc_error(hist3d, segments, centroids))
+    print ("Total sum is: {0}, expected sum is: {1}".format(np.sum([b.weight for b in boxes]), im_orig.size/3))
+    # now, find the centeroid for each box, and prepare the color map
+    # q = np.zeros((1, len(boxes), 3))
+    colorMap = np.zeros((256, 256, 256, 3), dtype=np.uint8)
+    for box in boxes:
+        # for now, not average weight - TODO!
+        print ("Range is: {0},{1},{2}".format(box.ranger, box.rangeg, box.rangeb))
+        r, g, b = np.around((box.ranger[1]-box.ranger[0]) / 2), np.around((box.rangeg[1]-box.rangeg[0]) / 2), np.around((box.rangeb[1]-box.rangeb[0]) / 2)
+        print("R,G,B: {0},{1},{2}".format(r,g,b))
+        sliced_colorMap = colorMap[box.ranger[0]:box.ranger[1], box.rangeg[0]:box.rangeg[1], box.rangeb[0]:box.rangeb[1]]
+        sliced_colorMap[:, :, :, 0] = r
+        sliced_colorMap[:, :, :, 1] = g
+        sliced_colorMap[:, :, :, 2] = b
 
-    im_quant = find_color_map(segments, centroids)[im].astype(np.float32) / 255
-    return im_quant, error
+    im_quant = np.zeros(im_uint.shape, dtype=np.uint8)
+    im_quant[:, :, 0] = colorMap[im_uint[:, :, 0], im_uint[:, :, 1], im_uint[:, :, 2], 0]
+    im_quant[:, :, 1] = colorMap[im_uint[:, :, 0], im_uint[:, :, 1], im_uint[:, :, 2], 1]
+    im_quant[:, :, 2] = colorMap[im_uint[:, :, 0], im_uint[:, :, 1], im_uint[:, :, 2], 2]
+    error = np.sum(np.power(im_orig - im_quant, 2))
+    return im_quant.astype(np.float32) / 255, error
 
 
 
