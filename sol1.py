@@ -1,8 +1,5 @@
-# TODO - is it possible we read float32 in [0,1] already???
 # TODO - check input data
 # TODO - run tests
-# TODO - Document, format and create README
-# TODO - wrap in try catch?
 # TODO - check in quantization division in 0
 # TODO - remove prints
 # TODO - check against avichai
@@ -135,20 +132,23 @@ def histogram_equalize(im_orig):
     else:
         # this is an intensity image
         im = np.around(im_orig * 255).astype(np.uint8)
-        hist_orig, bins = np.histogram(im, bins=256)  # TODO - make sure doesn't suppose to be 255
+        hist_orig, bins = np.histogram(im, bins=256, range=[0, 255])  # TODO - make sure doesn't suppose to be 255
         hist_cumsum = np.cumsum(hist_orig)
-        hist_cumsum_norm = np.around(hist_cumsum * (255.0 / im.size))  # normalizing the cumsum
+        hist_cumsum_norm = hist_cumsum * (255.0 / im.size)  # normalizing the cumsum
 
         # stretch if needed: (to have color map stretch between 0 to 255)
-        if hist_cumsum_norm[0] != 0 or hist_cumsum_norm[-1] != 255:  # in fact, hist_cumsum_norm[-1] always is 255
+        # this is a monotonically increasing function, which is cumulative distribution so
+        # hist_cumsum_norm[-1]=255 and min(hist_cumsum_norm)=hist_cumsum_norm[0
+        if hist_cumsum_norm[0] != 0 or hist_cumsum_norm[-1] != 255:
             cm = hist_cumsum_norm[0]  # minimal value in normed_cumsum which should be stretched to 0
-            hist_cumsum_norm = np.around(((hist_cumsum_norm - cm) * 255) / (hist_cumsum_norm[-1] - cm))
-            if (hist_cumsum.min() < 0):
+            hist_cumsum_norm = ((hist_cumsum_norm - cm) * 255) / (hist_cumsum_norm[-1] - cm)
+            if (hist_cumsum_norm.min() < 0):
                 raise Exception("Error in stretching the normalized histogram")
+        hist_cumsum_norm = np.around(hist_cumsum_norm)
 
         # reinterpret image
-        im_eq = np.interp(im.reshape(1, -1), bins[:-1], hist_cumsum_norm).reshape(im.shape).astype(np.uint8)
-        hist_eq = np.histogram(im_eq, bins=256)[0]
+        im_eq = (hist_cumsum_norm[im]).astype(np.uint8)
+        hist_eq = np.histogram(im_eq, bins=256, range=[0, 255])[0]
 
         return (im_eq.astype(np.float32) / 255), hist_orig, hist_eq
 
@@ -198,6 +198,7 @@ def find_z(n_quant, hist_cumsum, q=None):
         # find initial z - equal weighted segments
         pixs_per_seg = hist_cumsum[-1] / n_quant
         nz = [0] + [np.where(hist_cumsum <= (i + 1) * pixs_per_seg)[0][-1] for i in range(n_quant)]
+        nz[-1] = 256
         return nz
     else:
         nz = np.zeros(n_quant + 1)
@@ -242,7 +243,7 @@ def quantize(im_orig, n_quant, n_iter):
     else:
         # this is an intensity image
         im = np.around(im_orig * 255).astype(np.uint8)
-        hist_orig = np.histogram(im, bins=256)[0]
+        hist_orig = np.histogram(im, bins=256, range=[0, 255])[0]
         hist_cumsum = np.cumsum(hist_orig)
         zpz = hist_orig * np.arange(256)
 
@@ -260,9 +261,11 @@ def quantize(im_orig, n_quant, n_iter):
             z = new_z
             error.append(calc_error(hist_orig, z, q))
 
-        im_quant = np.interp(im.reshape(1, -1), np.arange(256), calc_color_map(z, q)).reshape(im.shape).astype(
-            np.float32) / 255
-        return im_quant, error
+        cmap = calc_color_map(z, q)
+        im_quant = (cmap[im]).astype(np.float32) / 255
+        # im_quant = np.interp(im.reshape(1, -1), np.arange(256), calc_color_map(z, q)).reshape(im.shape).astype(
+        #     np.float32) / 255
+        return im_quant, np.asarray(error).astype(np.float32)
 
 
 
@@ -366,11 +369,11 @@ def quantize_rgb(im_orig, n_quant, n_iter):
     im = np.transpose(im_uint, (2, 0, 1))
     im = im.reshape(3, -1)
     range_im = np.arange(256)
-    hist_r = np.histogram(im_uint[:, :, 0], 256)[0]
+    hist_r = np.histogram(im_uint[:, :, 0], 256, range=[0, 255])[0]
     hist_cumsum_r, zpz_r = np.cumsum(hist_r), hist_r * range_im
-    hist_g = np.histogram(im_uint[:, :, 1], 256)[0]
+    hist_g = np.histogram(im_uint[:, :, 1], 256, range=[0, 255])[0]
     hist_cumsum_g, zpz_g = np.cumsum(hist_g), hist_g * range_im
-    hist_b = np.histogram(im_uint[:, :, 2], 256)[0]
+    hist_b = np.histogram(im_uint[:, :, 2], 256, range=[0, 255])[0]
     hist_cumsum_b, zpz_b = np.cumsum(hist_b), hist_b * range_im
 
     boxes = [RGBBox(im.size / 3)]
