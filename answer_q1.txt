@@ -1,8 +1,6 @@
+Q: The quantization procedure needs an initial segment division of [0..255] to segments, z. If a division
+will have a gray level segment with no pixels, the procedure will crash (Q1: Why?)
 
-
-
-The quantization procedure needs an initial segment division of [0..255] to segments, z. If a division
-will have a gray level segment with no pixels, the procedure will crash (Q1: Why?) - when we find q (specifically here -
- when we find the first q), we find the weighted average of each segment. I.e, we divide by the number of pixel in the
- segment to normalize. since one of the segments have no pixel in it, we in fact divide by 0,
- causing our process to crash
+A: When we find q (specifically here - when we find the first q), we find the weighted average of each segment.
+I.e, we divide by the number of pixel in the segment to normalize. since one of the segments have no pixel in it, we
+in fact divide by 0, causing our process to crash.
