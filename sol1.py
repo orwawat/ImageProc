@@ -1,7 +1,3 @@
-# TODO - renames!!
-## TODO - use arange - not for loops!!!
-# TODO - make the bonus question more efficient - can hold images, perhaps better way to find centeroids
-# TODO - add comments and go through all of the strings
 import numpy as np
 from skimage.color import rgb2gray
 from scipy.misc import imread
@@ -104,6 +100,7 @@ def yiq2rgb(imYIQ):
 def clipped_yiq2rgb(imYIQ):
     return np.clip(yiq2rgb(imYIQ), a_min=0, a_max=1.0)  # clipping to [0,1]
 
+
 '''
     Performs histogram equalization of a given grayscale or RGB image
     If an RGB image is given, the following equalization procedure only operate on the Y channel of
@@ -127,24 +124,24 @@ def histogram_equalize(im_orig):
     else:
         # this is an intensity image
         im = np.around(im_orig * MAX_INTENSITY).astype(np.uint8)
-        hist_orig, bins = np.histogram(im, bins=256, range=[MAX_INTENSITY, MAX_INTENSITY])
+        hist_orig, bins = np.histogram(im, bins=256, range=[MIN_INTENSITY, MAX_INTENSITY])
         hist_cumsum = np.cumsum(hist_orig)
         hist_cumsum_norm = hist_cumsum * (MAX_INTENSITY_F / im.size)  # normalizing the cumsum
 
-        # stretch if needed: (to have color map stretch between MAX_INTENSITY to MAX_INTENSITY)
+        # stretch if needed: (to have color map stretch between MIN_INTENSITY to MAX_INTENSITY)
         # this is a monotonically increasing function, which is cumulative distribution so
         # hist_cumsum_norm[-1]=MAX_INTENSITY and min(hist_cumsum_norm)=hist_cumsum_norm[0]
         # Note - this is not the generic formuala for stretching but a specific one for this case for efficiency
-        if hist_cumsum_norm[0] != 0 or hist_cumsum_norm[-1] != MAX_INTENSITY:
+        if hist_cumsum_norm[0] != MIN_INTENSITY or hist_cumsum_norm[-1] != MAX_INTENSITY:
             cm = hist_cumsum_norm[0]  # minimal value in normed_cumsum which should be stretched to 0
             hist_cumsum_norm = ((hist_cumsum_norm - cm) * MAX_INTENSITY) / (hist_cumsum_norm[-1] - cm)
-            if hist_cumsum_norm.min() < MAX_INTENSITY:
+            if hist_cumsum_norm.min() < MIN_INTENSITY:
                 raise Exception("Error in stretching the normalized histogram")
         hist_cumsum_norm = np.around(hist_cumsum_norm)
 
         # reinterpret image
         im_eq = (hist_cumsum_norm[im]).astype(np.uint8)
-        hist_eq = np.histogram(im_eq, bins=256, range=[MAX_INTENSITY, MAX_INTENSITY])[0]
+        hist_eq = np.histogram(im_eq, bins=256, range=[MIN_INTENSITY, MAX_INTENSITY])[0]
 
         return (im_eq.astype(np.float32) / MAX_INTENSITY), hist_orig, hist_eq
 
@@ -161,6 +158,8 @@ def histogram_equalize(im_orig):
     Outputs:
         q - array like of length len(z)-1, q[0] is the q in segment (z[0]:z[1]) etc.
 '''
+
+
 def find_q(weighted_hist, hist, hist_cumsum, z):
     lenq = len(z) - 1
     q = np.zeros(lenq)
@@ -169,11 +168,12 @@ def find_q(weighted_hist, hist, hist_cumsum, z):
     for i in range(lenq):  # iterating over q to find each of the centeroids
         denominator = (hist_cumsum[z[i + 1] - 1] - hist_cumsum[z[i]] + hist[z[i]])
         if denominator == 0:  # To avoid division in zero when segments converge
-            q[i] = (z[i+1] + z[i]) // 2
+            q[i] = (z[i + 1] + z[i]) // 2
             continue
         nominator = np.sum(weighted_hist[z[i]:z[i + 1]])
         q[i] = np.around(nominator / denominator)
     return q
+
 
 '''
     Helper function to find segments from given centroids (1d).
@@ -189,10 +189,13 @@ def find_q(weighted_hist, hist, hist_cumsum, z):
         z - array like of length n_quant + 1. z[0]=0,z[-1]=256 always. z is monotonically increases.
             represents the segments in the histogram
 '''
+
+
 def find_z(n_quant, hist_cumsum, q=None):
     if q is None:
         # find initial z - equal weighted segments
         pixs_per_seg = hist_cumsum[-1] / n_quant
+        # iterate the number quants needed to find initial segments
         nz = [0] + [np.where(hist_cumsum <= (i + 1) * pixs_per_seg)[0][-1] for i in range(n_quant)]
         nz[-1] = 256
         return nz
@@ -201,6 +204,7 @@ def find_z(n_quant, hist_cumsum, q=None):
         nz[1:-1] = np.around((np.mean(np.row_stack((q[1:], q[:-1])), axis=0)))
         nz[-1] = 256
         return nz.astype(np.uint32)
+
 
 '''
     Performs optimal quantization of a given grayscale or RGB image
@@ -218,8 +222,9 @@ def find_z(n_quant, hist_cumsum, q=None):
                    quantization procedure.
 
 '''
-def quantize(im_orig, n_quant, n_iter):
 
+
+def quantize(im_orig, n_quant, n_iter):
     # find the current error (from segment division and centroids)
     def calc_error(hist, z, q):
         return np.sum(hist * np.power(np.arange(256) - calc_color_map(z, q), 2))
@@ -239,7 +244,7 @@ def quantize(im_orig, n_quant, n_iter):
     else:
         # If we are here we know this is an intensity image
         im = np.around(im_orig * MAX_INTENSITY).astype(np.uint8)
-        hist_orig = np.histogram(im, bins=256, range=[MAX_INTENSITY, MAX_INTENSITY])[0]
+        hist_orig = np.histogram(im, bins=256, range=[MIN_INTENSITY, MAX_INTENSITY])[0]
         hist_cumsum = np.cumsum(hist_orig)
         weighted_hist = hist_orig * np.arange(256)
 
@@ -259,7 +264,6 @@ def quantize(im_orig, n_quant, n_iter):
         cmap = calc_color_map(z, q)
         im_quant = (cmap[im]).astype(np.float32) / MAX_INTENSITY
         return im_quant, np.asarray(error).astype(np.float32)
-
 
 
 # ---------------------------------------------------------------------------------
@@ -290,30 +294,35 @@ Notes:
     minimizes the squared error in the box.
 '''
 
-
 '''
     This class holds a 3d recd in a ed color space (RGB) and can perform several functions on it.
     Besides being a data structure to hold the data of the box together and save calculation, it can also split
     itself into to new boxes such the pixels will be approximately equally distributed between te new boxes
 '''
-class RGBBox:
 
+
+class RGBBox:
     '''
-        Weight is the total weight (#pixels) in the box. The other fields are the range in every axis
+        im is the image pixels in the box (3*#pixels*1 floar32 [0,1]) in the box.
+        The other fields are the range in every axis
     '''
-    def __init__(self, weight, ranger=(MAX_INTENSITY, 256), rangeg=(MAX_INTENSITY, 256), rangeb=(MAX_INTENSITY, 256)):
-        self.weight = weight
+
+    def __init__(self, im, ranger=(MIN_INTENSITY, 256), rangeg=(MIN_INTENSITY, 256), rangeb=(MIN_INTENSITY, 256)):
         self.ranger = ranger
         self.rangeg = rangeg
         self.rangeb = rangeb
+        self.vol = self.get_vol()
+        self.im = self.get_sliced_img(im)  # hold only the relevant pixels
+        self.weight = self.im.size / 3
 
     '''
         Find the longest axis in the boxes, sort the pixels in im by it, and spit in the median one.
         im is the image, reshaped s.t it has 2d, with 3 rows corresponding to R,G,B channels
         returns two new boxes when each have approx. half the weight of the original box
     '''
-    def median_split_by_long_axis(self, im):
-        sliced_im = self.get_sliced_img(im)
+
+    def median_split_by_long_axis(self):
+        sliced_im = self.get_sliced_img(self.im)
         longestaxis = np.argmax(
             (self.ranger[1] - self.ranger[0], self.rangeg[1] - self.rangeg[0], self.rangeb[1] - self.rangeb[0]))
         sliced_im_1d = sliced_im[longestaxis, :]
@@ -326,39 +335,29 @@ class RGBBox:
         if longestaxis == 0:
             if median_in_axis == self.ranger[0]:
                 median_in_axis += 1
-            sliced_weight = np.sum(sliced_im_1d < median_in_axis)
-            return RGBBox(sliced_weight, (self.ranger[0], median_in_axis), self.rangeg, self.rangeb), \
-                   RGBBox(self.weight - sliced_weight, (median_in_axis, self.ranger[1]), self.rangeg, self.rangeb)
+            return RGBBox(self.im, (self.ranger[0], median_in_axis), self.rangeg, self.rangeb), \
+                   RGBBox(self.im, (median_in_axis, self.ranger[1]), self.rangeg, self.rangeb)
 
         elif longestaxis == 1:
             if median_in_axis == self.rangeg[0]:
                 median_in_axis += 1
-            sliced_weight = np.sum(sliced_im_1d < median_in_axis)
-            return RGBBox(sliced_weight, self.ranger, (self.rangeg[0], median_in_axis), self.rangeb), \
-                   RGBBox(self.weight - sliced_weight, self.ranger, (median_in_axis, self.rangeg[1]), self.rangeb)
+            return RGBBox(self.im, self.ranger, (self.rangeg[0], median_in_axis), self.rangeb), \
+                   RGBBox(self.im, self.ranger, (median_in_axis, self.rangeg[1]), self.rangeb)
 
         else:
             if median_in_axis == self.rangeb[0]:
                 median_in_axis += 1
-            sliced_weight = np.sum(sliced_im_1d < median_in_axis)
-            return RGBBox(sliced_weight, self.ranger, self.rangeg, (self.rangeb[0], median_in_axis)), \
-                   RGBBox(self.weight - sliced_weight, self.ranger, self.rangeg, (median_in_axis, self.rangeb[1]))
+            return RGBBox(self.im, self.ranger, self.rangeg, (self.rangeb[0], median_in_axis)), \
+                   RGBBox(self.im, self.ranger, self.rangeg, (median_in_axis, self.rangeb[1]))
 
-# TODO - can hold the image and save time
     '''
         Get image in the same format like above, and return only the part of it where its pixels fall into the range
     '''
+
     def get_sliced_img(self, im):
-        # TODO - remove if it works
-        in_r = np.logical_and(im[0, :] >= self.ranger[0], im[0, :] < self.ranger[1])
-        in_g = np.logical_and(im[1, :] >= self.rangeg[0], im[1, :] < self.rangeg[1])
-        in_b = np.logical_and(im[2, :] >= self.rangeb[0], im[2, :] < self.rangeb[1])
-        wherevec = np.logical_and(np.logical_and(in_r, in_g), in_b)
-        wherevec2 = np.logical_and.reduce((im[0, :] >= self.ranger[0], im[0, :] < self.ranger[1],
+        wherevec = np.logical_and.reduce((im[0, :] >= self.ranger[0], im[0, :] < self.ranger[1],
                                           im[1, :] >= self.rangeg[0], im[1, :] < self.rangeg[1],
                                           im[2, :] >= self.rangeb[0], im[2, :] < self.rangeb[1]))
-        if not np.all(wherevec == wherevec2):
-            print("Not Good - TODO")
         new_im = np.zeros((3, np.sum(wherevec)))
         new_im[0, :] = im[0, wherevec]
         new_im[1, :] = im[1, wherevec]
@@ -372,6 +371,7 @@ class RGBBox:
     '''
         Returns the volume of the box
     '''
+
     def get_vol(self):
         return (self.ranger[1] - self.ranger[0]) * (self.rangeg[1] - self.rangeg[0]) * (self.rangeg[1] - self.rangeg[0])
 
@@ -381,6 +381,8 @@ class RGBBox:
     which I described above in the Notes
     return [im_quant, error]
 '''
+
+
 def quantize_rgb(im_orig, n_quant, n_iter):
     if im_orig.ndim != 3:
         raise Exception("Can only quantize rgb images")
@@ -392,14 +394,14 @@ def quantize_rgb(im_orig, n_quant, n_iter):
     im = np.transpose(im_uint, (2, 0, 1))
     im = im.reshape(3, -1)
     range_im = np.arange(256)
-    hist_r = np.histogram(im_uint[:, :, 0], 256, range=[0, MAX_INTENSITY])[0]
+    hist_r = np.histogram(im_uint[:, :, 0], 256, range=[MIN_INTENSITY, MAX_INTENSITY])[0]
     hist_cumsum_r, weighted_hist_r = np.cumsum(hist_r), hist_r * range_im
-    hist_g = np.histogram(im_uint[:, :, 1], 256, range=[0, MAX_INTENSITY])[0]
+    hist_g = np.histogram(im_uint[:, :, 1], 256, range=[MIN_INTENSITY, MAX_INTENSITY])[0]
     hist_cumsum_g, weighted_hist_g = np.cumsum(hist_g), hist_g * range_im
-    hist_b = np.histogram(im_uint[:, :, 2], 256, range=[0, MAX_INTENSITY])[0]
+    hist_b = np.histogram(im_uint[:, :, 2], 256, range=[MIN_INTENSITY, MAX_INTENSITY])[0]
     hist_cumsum_b, weighted_hist_b = np.cumsum(hist_b), hist_b * range_im
 
-    boxes = [RGBBox(im.size / 3)]
+    boxes = [RGBBox(im)]
     min_box_vol2split = (256 ** 3) / n_quant
     min_weight2split = im.size / (3 * n_quant)
     boxes = split2quants_boxes(boxes, im, min_box_vol2split, min_weight2split, n_quant)
@@ -417,13 +419,16 @@ def quantize_rgb(im_orig, n_quant, n_iter):
     error = np.sum(distmat)
     return im_quant.astype(np.float32) / MAX_INTENSITY, error
 
+
 '''
     Helper function which receives the boxes and the rest of the needed data and fill the 3d RGB space color map
     with the centeroids
 '''
+
+
 def fill_color_map(boxes, colorMap, hist_b, hist_cumsum_b, hist_cumsum_g, hist_cumsum_r, hist_g, hist_r,
                    weighted_hist_b, weighted_hist_g, weighted_hist_r):
-    for box in boxes:
+    for box in boxes:  # find each of the centroids
         r = find_q(weighted_hist_r, hist_r, hist_cumsum_r, box.ranger)[0]
         g = find_q(weighted_hist_g, hist_g, hist_cumsum_g, box.rangeg)[0]
         b = find_q(weighted_hist_b, hist_b, hist_cumsum_b, box.rangeb)[0]
@@ -442,10 +447,12 @@ def fill_color_map(boxes, colorMap, hist_b, hist_cumsum_b, hist_cumsum_g, hist_c
     Helper function which iterates the boxes, chooses at each iteration the heaviest valid box and splits it until it
     has n_quants boxes
 '''
+
+
 def split2quants_boxes(boxes, im, min_box_vol2split, min_weight2split, n_quant):
-    while len(boxes) < n_quant:
-        while True:
-            weights = [int(b.weight) if (b.get_vol() > min_box_vol2split and b.weight > min_weight2split) else 0 for b
+    while len(boxes) < n_quant:  # iterate until enough quants have been found
+        while True:  # Iterate until next valid heaviest box has been found
+            weights = [int(b.weight) if (b.vol > min_box_vol2split and b.weight > min_weight2split) else 0 for b
                        in boxes]
             heviestBoxIdx = np.argmax(weights)
             if weights[heviestBoxIdx] == 0:
@@ -462,7 +469,7 @@ def split2quants_boxes(boxes, im, min_box_vol2split, min_weight2split, n_quant):
             break
         box = boxes[heviestBoxIdx]
         del boxes[heviestBoxIdx]
-        box1, box2 = box.median_split_by_long_axis(im)
+        box1, box2 = box.median_split_by_long_axis()
         boxes = boxes + [box1, box2]
 
     return boxes
