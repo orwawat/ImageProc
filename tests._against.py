@@ -43,43 +43,43 @@ images_grey = images + ['C:\\Users\\Maor\\Pictures\\head-shot_grey.jpg']
 
 # tests histograms grey
 #
-# for i, impath in enumerate(images_grey):
-#     im = sol1.read_image(impath, 1)
-#     im_eq, hist_orig, hist_eq = sol1.histogram_equalize(im)
-#     im_eq2, hist_orig2, hist_eq2 = test_sol1.histogram_equalize(im)
-#
-#     if not np.all(hist_orig == hist_orig2):
-#         raise Exception("Not same hists!")
-#     if not np.all(hist_eq == hist_eq2):
-#         if np.sum(hist_eq-hist_eq2) != 0:
-#             raise Exception("Not same eq hists!")
-#     print("max diff is:{0}".format(np.max(np.abs(im_eq-im_eq2))*255))
-#     plt.imshow(np.abs(im_eq-im_eq2))
-#     if im_eq.dtype != np.float32:
-#         raise Exception("In image with path: '{0}' the type was wrong".format(impath))
-#     if im_eq.max() > 1 or im_eq.min() < 0:
-#         raise Exception("In image with path: '{0}' the range was wrong".format(impath))
-# print("Fine histo")
-#
-#
-# # tests histograms color
-# plt.figure()
-# for i, impath in enumerate(images):
-#     im_eq, hist_orig, hist_eq = sol1.histogram_equalize(im)
-#     im_eq2, hist_orig2, hist_eq2 = test_sol1.histogram_equalize(im)
-#
-#     if not np.all(hist_orig == hist_orig2):
-#         raise Exception("Not same hists!")
-#     if not np.all(hist_eq == hist_eq2):
-#         if np.sum(hist_eq - hist_eq2) != 0:
-#             raise Exception("Not same eq hists!")
-#     print("max diff is:{0}".format(np.max(np.abs(im_eq - im_eq2)) * 255))
-#     if im_eq.dtype != np.float32:
-#         raise Exception("In image with path: '{0}' the type was wrong".format(impath))
-#     if im_eq.max() > 1 or im_eq.min() < 0:
-#         raise Exception("In image with path: '{0}' the range was wrong".format(impath))
-#
-# print("color histo fine")
+for i, impath in enumerate(images_grey):
+    im = sol1.read_image(impath, 1)
+    im_eq, hist_orig, hist_eq = sol1.histogram_equalize(im)
+    im_eq2, hist_orig2, hist_eq2 = test_sol1.histogram_equalize(im)
+
+    if not np.all(hist_orig == hist_orig2):
+        raise Exception("Not same hists!")
+    if not np.all(hist_eq == hist_eq2):
+        if np.sum(hist_eq-hist_eq2) != 0:
+            raise Exception("Not same eq hists!")
+    print("max diff is:{0}".format(np.max(np.abs(im_eq-im_eq2))*255))
+    plt.imshow(np.abs(im_eq-im_eq2))
+    if im_eq.dtype != np.float32:
+        raise Exception("In image with path: '{0}' the type was wrong".format(impath))
+    if im_eq.max() > 1 or im_eq.min() < 0:
+        raise Exception("In image with path: '{0}' the range was wrong".format(impath))
+print("Fine histo")
+
+
+# tests histograms color
+plt.figure()
+for i, impath in enumerate(images):
+    im_eq, hist_orig, hist_eq = sol1.histogram_equalize(im)
+    im_eq2, hist_orig2, hist_eq2 = test_sol1.histogram_equalize(im)
+
+    if not np.all(hist_orig == hist_orig2):
+        raise Exception("Not same hists!")
+    if not np.all(hist_eq == hist_eq2):
+        if np.sum(hist_eq - hist_eq2) != 0:
+            raise Exception("Not same eq hists!")
+    print("max diff is:{0}".format(np.max(np.abs(im_eq - im_eq2)) * 255))
+    if im_eq.dtype != np.float32:
+        raise Exception("In image with path: '{0}' the type was wrong".format(impath))
+    if im_eq.max() > 1 or im_eq.min() < 0:
+        raise Exception("In image with path: '{0}' the range was wrong".format(impath))
+
+print("color histo fine")
 
 
 # test quantization grey
