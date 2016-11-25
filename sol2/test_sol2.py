@@ -36,18 +36,20 @@ print("OK")
 print("Testing 1d IDFT...")
 for i,rf in enumerate(ffts):
     myidft = sol2.IDFT(rf)
-    npidft = np.ifft(rf)
-    if not np.all(myidft, npidft):
-        raise Exception(
-            "Failed converting case {0} to iff. max diff: {1}".format(i, np.abs(myidft - npidft).max()))
+    npidft = np.fft.ifft(rf)
+    if not np.all(myidft == npidft):
+        maxdiff = np.absolute(npfft - myfft).max()
+        if maxdiff > EPSILON:
+            raise Exception(
+                "Failed converting case {0} to ff. max diff: {1}".format(i, maxdiff))
 print("OK")
 
 #test dft2
 print("Testing 2d DFT...")
 ffts = []
-for impath in enumerate(images_grey):
+for impath in images_grey:
     im = sol1.read_image(impath, 1)
-    npfft = np.fft2(im)
+    npfft = np.fft.fft2(im)
     myfft = sol2.DFT2(im)
     if not np.all(npfft == myfft):
         raise Exception("Failed converting image in {0} to fft. max diff: {1}".format(impath, np.abs(npfft - myfft).max()))
