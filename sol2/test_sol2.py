@@ -3,6 +3,8 @@ import sol1
 import sol2
 import matplotlib.pyplot as plt
 
+EPSILON = 1e-10
+
 images = [r"C:\Users\Maor\Documents\ImageProc\external\jerusalem.jpg",
           r"C:\Users\Maor\Documents\ImageProc\external\Low Contrast.jpg",
           r"C:\Users\Maor\Documents\ImageProc\external\monkey.jpg",
@@ -23,8 +25,10 @@ for i, r in enumerate([np.cos(np.arange(100)), np.sin(np.arange(100)), np.power(
     npfft = np.fft.fft(im)
     myfft = sol2.DFT(im)
     if not np.all(npfft == myfft):
-        raise Exception(
-            "Failed converting case {0} to ff. max diff: {1}".format(i, np.abs(npfft - myfft).max()))
+        maxdiff = np.absolute(npfft - myfft).max()
+        if maxdiff > EPSILON:
+            raise Exception(
+                "Failed converting case {0} to ff. max diff: {1}".format(i, maxdiff))
     ffts.append(myfft)
 print("OK")
 

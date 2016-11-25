@@ -3,9 +3,12 @@ import numpy as np
 def DFT(signal):
     # TODO - make sure not using van der monde matrix
     fourier_signal = np.zeros(signal.shape, dtype=np.complex128)
-    for u in range(len(signal)): # TODO - no loops
-        fourier_signal[u] = np.sum([signal * np.exp(-2 * np.pi * 1j * u * x / len(signal)) for x in range(len(signal))])
-    return fourier_signal
+    #1d case
+    cols = signal.shape[0]
+    logex = (-2 * np.pi * 1j * np.arange(cols)) / cols
+    exmat = np.exp(np.matmul(np.arange(cols).reshape(cols, 1), logex[np.newaxis, :]))
+    return np.matmul(exmat, signal[:, np.newaxis]).flatten()
+
     
 def IDFT(fourier_signal):
     pass
