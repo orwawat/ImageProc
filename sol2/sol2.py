@@ -34,12 +34,12 @@ def IDFT(fourier_signal):
     
 def DFT2(signal):
     xaxisDFT = DFT(signal)
-    return DFT(xaxisDFT.transpose())
+    return DFT(xaxisDFT.transpose()).transpose()
 
     
 def IDFT2(fourier_signal):
     xaxisIDFT = IDFT(fourier_signal)
-    return DFT(xaxisIDFT.transpose())
+    return DFT(xaxisIDFT.transpose()).transpose()
 
 # computes the magnitude of image derivatives
 def conv_der(im):
