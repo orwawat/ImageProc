@@ -29,7 +29,10 @@ def IDFT(fourier_signal):
     signal = np.matmul(exmat, sig).transpose()
     if fourier_signal.ndim == 1:
         signal = signal[0]
-    return signal.astype(np.complex128)
+    # TODO - is needed?
+    if np.abs(np.imag(signal)).max() < 1e-10: # todo todo todo!!!
+        return np.real(signal).astype(np.float32)
+    return signal
     # TODO - check if need to return to real
     
 def DFT2(signal):
@@ -39,7 +42,7 @@ def DFT2(signal):
     
 def IDFT2(fourier_signal):
     xaxisIDFT = IDFT(fourier_signal)
-    return DFT(xaxisIDFT.transpose()).transpose()
+    return IDFT(xaxisIDFT.transpose()).transpose()
 
 # computes the magnitude of image derivatives
 def conv_der(im):
