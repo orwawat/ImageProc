@@ -2,12 +2,16 @@ import numpy as np
 
 def DFT(signal):
     # TODO - make sure not using van der monde matrix
-    fourier_signal = np.zeros(signal.shape, dtype=np.complex128)
-    #1d case
-    cols = signal.shape[0]
+    if signal.ndim == 1:
+        cols = signal.size
+        sig = signal[:, np.newaxis]
+    else:
+        cols = signal.shape[1]
+        sig = signal
     logex = (-2 * np.pi * 1j * np.arange(cols)) / cols
     exmat = np.exp(np.matmul(np.arange(cols).reshape(cols, 1), logex[np.newaxis, :]))
-    return np.matmul(exmat, signal[:, np.newaxis]).flatten()
+    fourier_signal = np.matmul(exmat, sig).transpose()
+    return fourier_signal.astype(np.complex128)
 
     
 def IDFT(fourier_signal):
