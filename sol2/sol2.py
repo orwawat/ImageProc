@@ -81,15 +81,18 @@ def fourier_der_image(im, axis=0):
 
 def fourier_der(im):
     # todo - should also support 1d?
-    im_four_sig = DFT2(im) * (np.pi * 2j)
+    im_four_sig = np.fft.fftshift(DFT2(im))
     rows, cols = im.shape
-    a= np.linspace(0, cols-1, num=cols)
-    # b=np.meshgrid(a, np.ones(rows))
-    b=np.ones((1,rows))
-    c=np.meshgrid(a, np.linspace(1,1,num=rows))
-    xder = IDFT2(np.multiply(im_four_sig / (cols ** 2), np.meshgrid(np.arange(cols), np.ones((1,rows)))))
-    yder = IDFT2(np.multiply(im_four_sig / (rows ** 2), np.meshgrid(np.ones(cols), np.arange(rows))))
-    return np.sqrt(np.power(xder, 2) + np.power(yder, 2))
+
+    umat = np.matmul(np.ones((rows,1)), np.arange(-(cols//2), np.ceil(cols/2.0))[np.newaxis, :])
+    vmat = np.matmul(np.arange(-(rows//2), np.ceil(rows/2.0))[:, np.newaxis], np.ones((1, cols)))
+
+    xder = IDFT2(np.fft.ifftshift(np.multiply(im_four_sig, umat))) * (np.pi * 2j / (cols ** 2))
+    yder = IDFT2(np.fft.ifftshift(np.multiply(im_four_sig, vmat))) * (np.pi * 2j / (rows ** 2))
+    # TODO - what to do with the leftover imaginative parts?
+    if np.abs(np.imag(xder)).max() > 1e-4 or np.abs(np.imag(yder)).max() > 1e-4:
+        raise Exception("Not cool")
+    return np.sqrt(np.power(np.real(xder), 2) + np.power(np.real(yder), 2)).astype(np.float32)
     # return magnitude
 # TODO - Q1: Why did you get two different magnitude images?
 

@@ -135,7 +135,7 @@ def test_fourier_der():
 def run_all_tests():
     print("Testing only grey. starting")
     try:
-        for test in [test_fourier_der, test_conv_der, test_dft, test_idft, test_dft2, test_idft2]:
+        for test in [test_dft, test_idft, test_dft2, test_idft2, test_conv_der, test_fourier_der]:
             test()
     except Exception as e:
         print("Tests failed. error: {0}".format(e))
