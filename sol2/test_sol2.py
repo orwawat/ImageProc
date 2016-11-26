@@ -3,6 +3,7 @@ import sol1
 import sol2
 import matplotlib.pyplot as plt
 from matplotlib import pylab
+from scipy.ndimage.filters import gaussian_filter
 
 EPSILON = 1e-7
 
@@ -128,14 +129,54 @@ def test_fourier_der():
     print("OK")
 
 #test blur_spatial
-# TODO
+def test_blur_spatial():
+    print("Testing blur_spatial...")
+    for ker_size in [1,3,5,7,9,15,21,51,151]:
+        plt.figure()
+        plt.suptitle("Size: {0}".format(ker_size))
+        for i, impath in enumerate(images_grey):
+            im = sol1.read_image(impath, 1)
+            blur_im = sol2.blur_spatial(im, ker_size)
+            plt.subplot(len(images_grey), 2, 2*i + 1)
+            plt.axis('off')
+            plt.imshow(im, cmap=plt.cm.gray)
+            plt.title("Expected")
+
+            plt.subplot(len(images_grey), 2, 2*i + 2)
+            plt.axis('off')
+            plt.imshow(blur_im, cmap=plt.cm.gray)
+            plt.title("Blurred")
+        plt.show()
+    pylab.show(block=True)
+    print("OK")
 
 #test blur_fourier
-# TODO
+def test_blur_spatial():
+    print("Testing blur_spatial...")
+    for ker_size in [1,3,5,7,9,15,21,51,151]:
+        plt.figure()
+        plt.suptitle("Size: {0}".format(ker_size))
+        for i, impath in enumerate(images_grey):
+            im = sol1.read_image(impath, 1)
+            blur_im = sol2.blur_fourier(im, ker_size)
+            plt.subplot(len(images_grey), 2, 2*i + 1)
+            plt.axis('off')
+            plt.imshow(im, cmap=plt.cm.gray)
+            plt.title("Expected")
+
+            plt.subplot(len(images_grey), 2, 2*i + 2)
+            plt.axis('off')
+            plt.imshow(blur_im, cmap=plt.cm.gray)
+            plt.title("Blurred")
+        plt.show()
+    pylab.show(block=True)
+    print("OK")
+
+
 def run_all_tests():
     print("Testing only grey. starting")
     try:
-        for test in [test_dft, test_idft, test_dft2, test_idft2, test_conv_der, test_fourier_der]:
+        for test in [test_dft, test_idft, test_dft2, test_idft2, test_conv_der, test_fourier_der, test_blur_spatial, test_blur_spatial]:
             test()
     except Exception as e:
         print("Tests failed. error: {0}".format(e))

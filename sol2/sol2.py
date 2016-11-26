@@ -96,13 +96,34 @@ def fourier_der(im):
     # return magnitude
 # TODO - Q1: Why did you get two different magnitude images?
 
+def get_gaus_ker(kernel_size):
+    if kernel_size % 2 == 0:
+        raise Exception("Only odd numbers are allowed as kernel sizes")
+    ker = np.array([[1]], dtype=np.float32)
+    for i in range(kernel_size-1):
+        ker = convolve2d(ker, np.array([[1,1]]))
+    ker = convolve2d(ker, ker.transpose())
+    return ker / np.sum(ker)
+
 def blur_spatial (im, kernel_size):
-    pass
-    # return blur_im
+    if kernel_size == 1:
+        return im
+    ker = get_gaus_ker(kernel_size)
+    blur_im = convolve2d(im, ker, mode='same')
+    return blur_im.astype(np.float32)
     
-def blur_fourier (im, kernel_size):
-    pass
-    # return blur_im
+def blur_fourier(im, kernel_size):
+    if kernel_size == 1:
+        return im
+    get_gaus_ker(kernel_size)
+    padded_ker = np.zeros(im.shape)
+    centerx = im.shape[0] // 2 + 1
+    centery = im.shape[1] // 2 + 1
+    padded_ker[centerx-kernel_size//2:centerx+kernel_size//2+1, centery-kernel_size//2:centery+kernel_size//2+1] = \
+        get_gaus_ker(kernel_size)
+    blur_im = np.multiply(DFT2(im), np.fft.ifftshift(padded_ker))
+    return np.real(IDFT2(blur_im)).astype(np.float32)  # TODO - what to do with this conversion?
+
     
 '''
 Q2: What happens if the center of the gaussian (in the space domain) will not be at the
