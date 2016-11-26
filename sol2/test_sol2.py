@@ -53,7 +53,7 @@ def test_idft():
 #test dft2
 def test_dft2():
     print("Testing 2d DFT...")
-    ffts = []
+    ffts[:] = []
     for impath in images_grey:
         im = sol1.read_image(impath, 1)
         npfft = np.fft.fft2(im)
@@ -88,7 +88,7 @@ def test_idft2():
                 plt.title('NP ifft2 for your DFT2')
                 plt.axis('off')
                 plt.imshow(npifft, cmap=plt.cm.gray, )
-                plt.subplot(1, 3, 2)
+                plt.subplot(1, 3, 3)
                 plt.title('Your IDFT2 for your DFT2')
                 plt.axis('off')
                 plt.imshow(myidft, cmap=plt.cm.gray, )
@@ -99,11 +99,33 @@ def test_idft2():
     print("OK")
 
 
-#test conv_der magnitude
-# TODO
+def test_conv_der():
+    print("Testing conv_der...")
+    plt.figure()
+    for i,impath in enumerate(images_grey):
+        im = sol1.read_image(impath, 1)
+        mag_im = sol2.conv_der(im)
+        plt.subplot(1, len(images_grey), i+1)
+        plt.axis('off')
+        plt.imshow(mag_im, cmap=plt.cm.gray)
+    plt.show()
+    pylab.show(block=True)
+    print("OK")
+
 
 #test fourier_der magnitude
-# TODO
+def test_fourier_der():
+    print("Testing fourier_der...")
+    plt.figure()
+    for i,impath in enumerate(images_grey):
+        im = sol1.read_image(impath, 1)
+        mag_im = sol2.fourier_der(im)
+        plt.subplot(1, len(images_grey), i+1)
+        plt.axis('off')
+        plt.imshow(mag_im, cmap=plt.cm.gray)
+    plt.show()
+    pylab.show(block=True)
+    print("OK")
 
 #test blur_spatial
 # TODO
@@ -113,10 +135,11 @@ def test_idft2():
 def run_all_tests():
     print("Testing only grey. starting")
     try:
-        for test in [test_dft, test_idft, test_dft2, test_idft2]:
+        for test in [test_fourier_der, test_conv_der, test_dft, test_idft, test_dft2, test_idft2]:
             test()
     except Exception as e:
         print("Tests failed. error: {0}".format(e))
         exit(-1)
+    print("All tests passed!")
 
 run_all_tests()
