@@ -35,9 +35,9 @@ def IDFT(fourier_signal):
     signal = np.matmul(exmat, sig).transpose()
     if fourier_signal.ndim == 1:
         signal = signal[0]
-    # TODO - is needed?
-    if np.abs(np.imag(signal)).max() < 1e-10: # todo todo todo!!!
-        return np.real(signal).astype(np.float32)
+    # # TODO - is needed?
+    # if np.abs(np.imag(signal)).max() < 1e-10: # todo todo todo!!!
+    #     return np.real(signal).astype(np.float32)
     return signal
     # TODO - check if need to return to real
 
@@ -46,8 +46,8 @@ def IDFT(fourier_signal):
     Implemented without loops and compatible with matrices
 '''
 def DFT2(signal):
-    if signal.ndim != 2 or signal.dtype != np.float32:
-        raise Exception("Signal has to be 2d and float32 to be converted using IDFT")
+    if signal.ndim != 2 or (signal.dtype != np.float32 and signal.dtype != np.float64):
+        raise Exception("Signal has to be 2d and float32 or float64 to be converted using DFT2")
     xaxisDFT = DFT(signal)
     return DFT(xaxisDFT.transpose()).transpose()
 
@@ -109,20 +109,25 @@ def blur_spatial (im, kernel_size):
     if kernel_size == 1:
         return im
     ker = get_gaus_ker(kernel_size)
-    blur_im = convolve2d(im, ker, mode='same')
+    blur_im = convolve2d(im, ker, mode='same', boundary='wrap') # wrap to match how the fourier blur works
     return blur_im.astype(np.float32)
     
 def blur_fourier(im, kernel_size):
     if kernel_size == 1:
         return im
-    get_gaus_ker(kernel_size)
+    # TODO - no need to convert the gaussian to the frequency domain?
     padded_ker = np.zeros(im.shape)
-    centerx = im.shape[0] // 2 + 1
-    centery = im.shape[1] // 2 + 1
+    centerx = im.shape[0] // 2 # TODO - was supposed to be +1?
+    centery = im.shape[1] // 2 # TODO - was supposed to be +1?
     padded_ker[centerx-kernel_size//2:centerx+kernel_size//2+1, centery-kernel_size//2:centery+kernel_size//2+1] = \
         get_gaus_ker(kernel_size)
-    blur_im = np.multiply(DFT2(im), np.fft.ifftshift(padded_ker))
-    return np.real(IDFT2(blur_im)).astype(np.float32)  # TODO - what to do with this conversion?
+    # import matplotlib.pyplot as plt
+    # plt.imshow(np.log(1+np.absolute(DFT2(padded_ker))), cmap=plt.cm.gray)
+    # plt.show()
+    # plt.imshow(np.log(1+np.absolute(DFT2(im))), cmap=plt.cm.gray)
+    # plt.show()
+    blur_im = np.multiply(DFT2(im), DFT2(padded_ker))
+    return np.real(np.fft.ifftshift(IDFT2(blur_im))).astype(np.float32)  # TODO - what to do with this conversion?
 
     
 '''

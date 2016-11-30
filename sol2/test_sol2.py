@@ -135,6 +135,7 @@ def test_blur_spatial():
         plt.figure()
         plt.suptitle("Size: {0}".format(ker_size))
         for i, impath in enumerate(images_grey):
+            print("Blurring img {0}/{1} ({2}) with kernel size {3}".format(i, len(images_grey), impath, ker_size))
             im = sol1.read_image(impath, 1)
             blur_im = sol2.blur_spatial(im, ker_size)
             plt.subplot(len(images_grey), 2, 2*i + 1)
@@ -151,12 +152,13 @@ def test_blur_spatial():
     print("OK")
 
 #test blur_fourier
-def test_blur_spatial():
+def test_blur_fourier():
     print("Testing blur_spatial...")
     for ker_size in [1,3,5,7,9,15,21,51,151]:
         plt.figure()
         plt.suptitle("Size: {0}".format(ker_size))
         for i, impath in enumerate(images_grey):
+            print("Blurring img {0}/{1} ({2}) with kernel size {3}".format(i, len(images_grey), impath, ker_size))
             im = sol1.read_image(impath, 1)
             blur_im = sol2.blur_fourier(im, ker_size)
             plt.subplot(len(images_grey), 2, 2*i + 1)
@@ -172,11 +174,12 @@ def test_blur_spatial():
     pylab.show(block=True)
     print("OK")
 
-
+# TODO - test fourier against conv
 def run_all_tests():
     print("Testing only grey. starting")
     try:
-        for test in [test_dft, test_idft, test_dft2, test_idft2, test_conv_der, test_fourier_der, test_blur_spatial, test_blur_spatial]:
+        for test in [test_dft, test_idft, test_dft2, test_idft2, test_conv_der, test_fourier_der,
+                     test_blur_spatial, test_blur_fourier]:
             test()
     except Exception as e:
         print("Tests failed. error: {0}".format(e))
