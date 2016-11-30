@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.signal import convolve2d
+from numpy.matlib import repmat
 
 '''
     Implemented without loops and compatible with matrices
@@ -84,8 +85,8 @@ def fourier_der(im):
     im_four_sig = np.fft.fftshift(DFT2(im))
     rows, cols = im.shape
 
-    umat = np.matmul(np.ones((rows,1)), np.arange(-(cols//2), np.ceil(cols/2.0))[np.newaxis, :])
-    vmat = np.matmul(np.arange(-(rows//2), np.ceil(rows/2.0))[:, np.newaxis], np.ones((1, cols)))
+    umat = repmat(np.arange(-(cols//2), np.ceil(cols/2.0))[np.newaxis, :], rows, 1)
+    vmat = repmat(np.arange(-(rows//2), np.ceil(rows/2.0))[:, np.newaxis], 1, cols)
 
     xder = IDFT2(np.fft.ifftshift(np.multiply(im_four_sig, umat))) * (np.pi * 2j / (cols ** 2))
     yder = IDFT2(np.fft.ifftshift(np.multiply(im_four_sig, vmat))) * (np.pi * 2j / (rows ** 2))
@@ -126,8 +127,8 @@ def blur_fourier(im, kernel_size):
     # plt.show()
     # plt.imshow(np.log(1+np.absolute(DFT2(im))), cmap=plt.cm.gray)
     # plt.show()
-    blur_im = np.multiply(DFT2(im), DFT2(padded_ker))
-    return np.real(np.fft.ifftshift(IDFT2(blur_im))).astype(np.float32)  # TODO - what to do with this conversion?
+    blur_im = np.multiply(DFT2(im), DFT2(np.fft.ifftshift(padded_ker)))
+    return np.real(IDFT2(blur_im)).astype(np.float32)  # TODO - what to do with this conversion?
 
     
 '''
