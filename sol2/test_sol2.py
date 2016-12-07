@@ -41,7 +41,7 @@ def test_idft():
     for i,rf in enumerate(ffts):
         myidft = sol2.IDFT(rf)
         npidft = np.fft.ifft(rf)
-        if myidft.dtype != np.float32:
+        if myidft.dtype != np.complex128:
             raise Exception("Failed in IDFT - returned wrong type")
         npidft = np.real(npidft)
         if not np.all(myidft == npidft):
@@ -74,7 +74,7 @@ def test_idft2():
     for i,rf in enumerate(ffts):
         myidft = sol2.IDFT2(rf)
         npifft = np.fft.ifft2(rf)
-        if myidft.dtype != np.float32:
+        if myidft.dtype != np.complex128:
             raise Exception("Failed in IDFT2 - returned wrong type")
         if not np.all(myidft == npifft):
             avgdiff = np.absolute(npifft - myidft).mean()
@@ -103,6 +103,7 @@ def test_idft2():
 def test_conv_der():
     print("Testing conv_der...")
     plt.figure()
+    plt.suptitle('Conv der')
     for i,impath in enumerate(images_grey):
         im = sol1.read_image(impath, 1)
         mag_im = sol2.conv_der(im)
@@ -110,7 +111,6 @@ def test_conv_der():
         plt.axis('off')
         plt.imshow(mag_im, cmap=plt.cm.gray)
     plt.show()
-    pylab.show(block=True)
     print("OK")
 
 
@@ -118,6 +118,7 @@ def test_conv_der():
 def test_fourier_der():
     print("Testing fourier_der...")
     plt.figure()
+    plt.suptitle('Fourier der')
     for i,impath in enumerate(images_grey):
         im = sol1.read_image(impath, 1)
         mag_im = sol2.fourier_der(im)
@@ -125,7 +126,6 @@ def test_fourier_der():
         plt.axis('off')
         plt.imshow(mag_im, cmap=plt.cm.gray)
     plt.show()
-    pylab.show(block=True)
     print("OK")
 
 #test blur_spatial
@@ -133,7 +133,7 @@ def test_blur_spatial():
     print("Testing blur_spatial...")
     for ker_size in [1,3,5,7,9,15,21,51,151]:
         plt.figure()
-        plt.suptitle("Size: {0}".format(ker_size))
+        plt.suptitle("Spatial blur - Size: {0}".format(ker_size))
         for i, impath in enumerate(images_grey):
             print("Blurring img {0}/{1} ({2}) with kernel size {3}".format(i+1, len(images_grey), impath, ker_size))
             im = sol1.read_image(impath, 1)
@@ -148,7 +148,6 @@ def test_blur_spatial():
             plt.imshow(blur_im, cmap=plt.cm.gray)
             plt.title("Blurred")
         plt.show()
-    pylab.show(block=True)
     print("OK")
 
 #test blur_fourier
@@ -156,7 +155,7 @@ def test_blur_fourier():
     print("Testing blur_spatial...")
     for ker_size in [1,3,5,7,9,15,21,51,151]:
         plt.figure()
-        plt.suptitle("Size: {0}".format(ker_size))
+        plt.suptitle("Fourier blur - Size: {0}".format(ker_size))
         for i, impath in enumerate(images_grey):
             print("Blurring img {0}/{1} ({2}) with kernel size {3}".format(i+1, len(images_grey), impath, ker_size))
             im = sol1.read_image(impath, 1)
@@ -171,7 +170,6 @@ def test_blur_fourier():
             plt.imshow(blur_im, cmap=plt.cm.gray)
             plt.title("Blurred")
         plt.show()
-    pylab.show(block=True)
     print("OK")
 
 def compare_blurs():
@@ -197,6 +195,7 @@ def run_all_tests():
     except Exception as e:
         print("Tests failed. error: {0}".format(e))
         exit(-1)
+    pylab.show(block=True)
     print("All tests passed!")
 
 run_all_tests()
