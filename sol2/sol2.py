@@ -1,13 +1,21 @@
 import numpy as np
 from scipy.signal import convolve2d
 from numpy.matlib import repmat
+from sol1 import read_image
+
+# TODO - use np.real_if_close ?
 
 '''
-    Implemented without loops and compatible with matrices
+    Implemented without loops and compatible with matrices (Extra credit)
+
+    Transform a 1D (or 2d) discrete signal to its Fourier representation
+    Input:
+        signal is an array of dtype float32 with shape (N,1) (technically it’s 2D)
+    Output:
+        fourier_signal is an array of dtype complex128 with the same shape.
 '''
 def DFT(signal):
-    # TODO - make sure not using van der monde matrix
-    if signal.ndim == 1:
+    if signal.ndim == 1:  # to be able to handle a 1d vector as well
         cols = signal.size
         sig = signal[:, np.newaxis]
     else:
@@ -16,15 +24,23 @@ def DFT(signal):
     logex = (-2 * np.pi * 1j * np.arange(cols)) / cols
     exmat = np.exp(np.matmul(np.arange(cols).reshape(cols, 1), logex[np.newaxis, :]))
     fourier_signal = np.matmul(exmat, sig).transpose()
-    if signal.ndim == 1:
-        fourier_signal = fourier_signal[0]
+    # if signal.ndim == 1:  # TODO - remove if not needed
+    #     fourier_signal = fourier_signal[0]
     return fourier_signal.astype(np.complex128)
 
 '''
-    Implemented without loops and compatible with matrices
+    Implemented without loops and compatible with matrices (Extra credit)
+
+    Transform a 1D (or 2d) to its discrete signal from its Fourier representation
+    Input:
+        fourier_signal is an array of dtype complex128 with shape (N,1)
+    Output:
+        signal has the same shape and dtype.  Note that when the origin of fourier_signal
+            is a transformed real signal you can expect signal to be real valued as well,
+            although it may return with a tiny imaginary par
 '''
 def IDFT(fourier_signal):
-    if fourier_signal.ndim == 1:
+    if fourier_signal.ndim == 1:  # to be able to handle a 1d vector as well
         cols = fourier_signal.size
         sig = fourier_signal[:, np.newaxis]
     else:
@@ -34,17 +50,20 @@ def IDFT(fourier_signal):
     logex = (2 * np.pi * 1j * np.arange(cols)) / cols
     exmat = np.exp(np.matmul(np.arange(cols).reshape(cols, 1), logex[np.newaxis, :]))
     signal = np.matmul(exmat, sig).transpose()
-    if fourier_signal.ndim == 1:
-        signal = signal[0]
-    # # TODO - is needed?
-    # if np.abs(np.imag(signal)).max() < 1e-10: # todo todo todo!!!
-    #     return np.real(signal).astype(np.float32)
+    # if fourier_signal.ndim == 1:   # TODO - remove if not needed
+    #     signal = signal[0]
     return signal
-    # TODO - check if need to return to real
 
 
 '''
     Implemented without loops and compatible with matrices
+
+    Converts a 2D discrete signal to its Fourier representation.
+
+    Input:
+        image is a grayscale image of dtype float32
+    Output:
+        and fourier_image is a 2D array of dtype complex128
 '''
 def DFT2(signal):
     if signal.ndim != 2 or (signal.dtype != np.float32 and signal.dtype != np.float64):
@@ -54,6 +73,15 @@ def DFT2(signal):
 
 '''
     Implemented without loops and compatible with matrices
+
+    Converts a 2D to a discrete signal from its Fourier representation.
+
+    Input:
+        fourier_image is a 2D array of dtype complex128.
+    Output:
+        image has the same shape and dtype. Note that when the origin of fourier_image is a
+            real image transformed with DFT2 you can expect the returned image to be real valued as well,
+            although it may return with a tiny imaginary part.
 '''
 def IDFT2(fourier_signal):
     if fourier_signal.ndim != 2 or fourier_signal.dtype != np.complex128:
@@ -62,24 +90,37 @@ def IDFT2(fourier_signal):
     return IDFT(xaxisIDFT.transpose()).transpose()
 
 
+# TODO - make sure shouldn't convovle with 1 0 -1 because of mirroring
+'''
+    Derives an image in the given axis using simple convolution with [-1, 0 ,1]
+
+    Input:
+        a grayscale images of type float32
+'''
 def derive_img(im, axis=0):
     if axis != 0:
         return derive_img(im.transpose()).transpose()
     kernel = np.array([[-1, 0, 1]], dtype=np.float32)
     return convolve2d(im, kernel, mode='same')
 
-# computes the magnitude of image derivatives
+'''
+    Computes the magnitude of image derivatives, the image in each using simple convolution with [1, 0, −1]
+        as a row and column vectors, to get the two image derivatives.
+
+    Input and Output:
+        a grayscale images of type float32
+'''
 def conv_der(im):
     # todo - should also support 1d?
     return np.sqrt(np.power(derive_img(im), 2) + np.power(derive_img(im, 1), 2))
 
+'''
+    Computes the magnitude of image derivatives using Fourier transform, using the
+        formula from class to derive in the x and y directions.
 
-def fourier_der_image(im, axis=0):
-    if axis != 0:
-        return fourier_der_image(im.transpose()).transpose()
-    kernel = np.array([[-1, 0, 1]], dtype=np.float32)
-    return convolve2d(im, kernel, mode='same')
-
+    Input and Output:
+        a grayscale images of type float32
+'''
 def fourier_der(im):
     # todo - should also support 1d?
     im_four_sig = np.fft.fftshift(DFT2(im))
@@ -90,13 +131,23 @@ def fourier_der(im):
 
     xder = IDFT2(np.fft.ifftshift(np.multiply(im_four_sig, umat))) * (np.pi * 2j / (cols ** 2))
     yder = IDFT2(np.fft.ifftshift(np.multiply(im_four_sig, vmat))) * (np.pi * 2j / (rows ** 2))
-    # TODO - what to do with the leftover imaginative parts?
-    if np.abs(np.imag(xder)).max() > 1e-4 or np.abs(np.imag(yder)).max() > 1e-4:
-        raise Exception("Not cool")
-    return np.sqrt(np.power(np.real(xder), 2) + np.power(np.real(yder), 2)).astype(np.float32)
-    # return magnitude
-# TODO - Q1: Why did you get two different magnitude images?
 
+    if np.abs(np.imag(xder)).max() > 1e-4 or np.abs(np.imag(yder)).max() > 1e-4:
+        raise Exception("Not cool")  # TODO - remove this ut
+    return np.sqrt(np.power(np.real(xder), 2) + np.power(np.real(yder), 2)).astype(np.float32)
+
+
+
+'''
+    Returns a 2d approximation of a gaussian kernel using binomial coefficients.
+
+    Input:
+        kernel_size is an ODD number which is the size of the kernel in each  direction
+
+    Output:
+        ker - a 2d matrix array of type np.float32. Its sum is 1 and it contains an approximation of a gaussian kernel
+            (with the 0,0 located in the center)
+'''
 def get_gaus_ker(kernel_size):
     if kernel_size % 2 == 0:
         raise Exception("Only odd numbers are allowed as kernel sizes")
@@ -106,34 +157,47 @@ def get_gaus_ker(kernel_size):
     ker = convolve2d(ker, ker.transpose())
     return ker / np.sum(ker)
 
+
+'''
+    Performs image blurring using 2D convolution between the image f and a gaussian kernel g
+
+    Inputs:
+        im - is the input image to be blurred (grayscale float32 image).
+        kernel_Size - is the size of the gaussian kernel in each dimension (an odd integer).
+
+    Output:
+        blur_im - is the output blurry image (grayscale float32 image).
+
+'''
 def blur_spatial (im, kernel_size):
     if kernel_size == 1:
         return im
     ker = get_gaus_ker(kernel_size)
-    blur_im = convolve2d(im, ker, mode='same', boundary='wrap') # wrap to match how the fourier blur works
+    blur_im = convolve2d(im, ker, mode='same', boundary='wrap')  # wrap to match how the fourier blur works
     return blur_im.astype(np.float32)
-    
+
+
+'''
+    performs image blurring with gaussian kernel in Fourier space.
+
+    Inputs:
+        im - is the input image to be blurred (grayscale float32 image).
+        kernel_Size - is the size of the gaussian kernel in each dimension (an odd integer).
+
+    Output:
+        blur_im - is the output blurry image (grayscale float32 image).
+'''
 def blur_fourier(im, kernel_size):
     if kernel_size == 1:
         return im
-    # TODO - no need to convert the gaussian to the frequency domain?
+
+    # Generate a padded gaussian kernel
     padded_ker = np.zeros(im.shape)
-    centerx = im.shape[0] // 2 # TODO - was supposed to be +1?
-    centery = im.shape[1] // 2 # TODO - was supposed to be +1?
+    centerx = im.shape[0] // 2
+    centery = im.shape[1] // 2
     padded_ker[centerx-kernel_size//2:centerx+kernel_size//2+1, centery-kernel_size//2:centery+kernel_size//2+1] = \
         get_gaus_ker(kernel_size)
-    # import matplotlib.pyplot as plt
-    # plt.imshow(np.log(1+np.absolute(DFT2(padded_ker))), cmap=plt.cm.gray)
-    # plt.show()
-    # plt.imshow(np.log(1+np.absolute(DFT2(im))), cmap=plt.cm.gray)
-    # plt.show()
-    blur_im = np.multiply(DFT2(im), DFT2(np.fft.ifftshift(padded_ker)))
-    return np.real(IDFT2(blur_im)).astype(np.float32)  # TODO - what to do with this conversion?
 
-    
-'''
-Q2: What happens if the center of the gaussian (in the space domain) will not be at the
-(0,0) of the image? Why does it happen?
-Q3: What is the difference between the two results (Blurring in image space and blurring
-in Fourier space)?
-'''
+    # Blur the image in the frequency domain
+    blur_im = np.multiply(DFT2(im), DFT2(np.fft.ifftshift(padded_ker)))
+    return np.real(IDFT2(blur_im)).astype(np.float32)
