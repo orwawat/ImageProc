@@ -4,14 +4,17 @@ import sol2
 import matplotlib.pyplot as plt
 from matplotlib import pylab
 from scipy.ndimage.filters import gaussian_filter
+import os
 
 EPSILON = 1e-7
 
-images = [r"C:\Users\Maor\Documents\ImageProc\external\jerusalem.jpg",
-          r"C:\Users\Maor\Documents\ImageProc\external\Low Contrast.jpg",
-          r"C:\Users\Maor\Documents\ImageProc\external\monkey.jpg",
-          'C:\\Users\\Maor\\Pictures\\head-shot.jpg']
-images_grey = images + ['C:\\Users\\Maor\\Pictures\\head-shot_grey.jpg']
+image_pth = r'/cs/usr/maor_i/safe/PycharmProjects/ImageProc/sol2/external'
+images = [os.path.join(image_pth, 'jerusalem.jpg'),
+            os.path.join(image_pth, 'Low_Contrast.jpg'),
+            os.path.join(image_pth, 'monkey.jpg'),
+            os.path.join(image_pth, 'head-shot.jpg'),
+            os.path.join(image_pth, 'jerusalem.jpg')]
+images_grey = images + [os.path.join(image_pth, 'head-shot_grey.jpg')]
 
 def stretch(im, mn=0, mx=1):
     return ((mx-mn)*(im-im.min()))/(im.max()- im.min())
@@ -128,10 +131,28 @@ def test_fourier_der():
     plt.show()
     print("OK")
 
+def test_gauss_ker():
+    print("Testing gaussian kernel generation..")
+    for sz in range(1,151,2):
+        ker = sol2.get_gaus_ker(sz)
+        if ker.dtype != np.float32 and ker.dtype != np.float64:
+            raise Exception("Kernel of size {0} is of the wrong type".format(sz))
+        r,c = ker.shape
+        if r != c or r != sz:
+            raise Exception("Kernel of size {0} is of the wrong size {1}".format(sz, ker.shape))
+        if ker.sum().astype(np.float32) != 1.0:
+            raise Exception("Kernel of size {0} has a wrong sum {1}".format(sz, ker.sum()))
+        if ker.min() <= 0:
+            raise Exception("Kernel of size {0} has a wrong min {1}".format(sz, ker.min()))
+        for i in range(sz//2):
+            if not np.all(ker[i,:] == ker[-i-1,:]) or not np.all(ker[:,i] == ker[:,-i-1]):
+                raise Exception("Kernel of size {0} has a non symetric matrix".format(sz))
+    print("OK")
+
 #test blur_spatial
 def test_blur_spatial():
     print("Testing blur_spatial...")
-    for ker_size in [1,3,5,7,9,15,21,51,151]:
+    for ker_size in [5,7,9,15,21]:
         plt.figure()
         plt.suptitle("Spatial blur - Size: {0}".format(ker_size))
         for i, impath in enumerate(images_grey):
@@ -153,7 +174,7 @@ def test_blur_spatial():
 #test blur_fourier
 def test_blur_fourier():
     print("Testing blur_spatial...")
-    for ker_size in [1,3,5,7,9,15,21,51,151]:
+    for ker_size in [7,9,15,21]:
         plt.figure()
         plt.suptitle("Fourier blur - Size: {0}".format(ker_size))
         for i, impath in enumerate(images_grey):
@@ -174,7 +195,7 @@ def test_blur_fourier():
 
 def compare_blurs():
     print("Testing compare_blurs...")
-    for ker_size in [5, 9, 15, 21, 51, 151]:
+    for ker_size in [5, 15, 21, 31]:
         for i, impath in enumerate(images_grey):
             print("Blurring img {0}/{1} ({2}) with kernel size {3}".format(i+1, len(images_grey), impath, ker_size))
             im = sol1.read_image(impath, 1)
@@ -190,7 +211,7 @@ def run_all_tests():
     print("Testing only grey. starting")
     try:
         for test in [test_dft, test_idft, test_dft2, test_idft2, test_conv_der, test_fourier_der,
-                     test_blur_spatial, test_blur_fourier, compare_blurs]:
+                     test_gauss_ker, test_blur_spatial, test_blur_fourier, compare_blurs]:
             test()
     except Exception as e:
         print("Tests failed. error: {0}".format(e))

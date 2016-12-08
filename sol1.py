@@ -16,8 +16,8 @@ MAX_INTENSITY_F = 255.0
 '''
     Reads a given image file and converts it into a given representation
         filename - string containing the image filename to read.
-        representation - representation code, either 1 or 2 defining if the output should be either a grayscale
-                        image (1) or an RGB image (2).
+        representation - representation code, either 1 or 2 defining if the output should be either a
+                        grayscale image (1) or an RGB image (2).
         return im as np.float32 in range [0,1]
 '''
 
@@ -131,7 +131,8 @@ def histogram_equalize(im_orig):
         # stretch if needed: (to have color map stretch between MIN_INTENSITY to MAX_INTENSITY)
         # this is a monotonically increasing function, which is cumulative distribution so
         # hist_cumsum_norm[-1]=MAX_INTENSITY and min(hist_cumsum_norm)=hist_cumsum_norm[0]
-        # Note - this is not the generic formuala for stretching but a specific one for this case for efficiency
+        # Note - this is not the generic formuala for stretching but a specific one for this
+        # case for efficiency
         if hist_cumsum_norm[0] != MIN_INTENSITY or hist_cumsum_norm[-1] != MAX_INTENSITY:
             cm = hist_cumsum_norm[0]  # minimal value in normed_cumsum which should be stretched to 0
             hist_cumsum_norm = ((hist_cumsum_norm - cm) * MAX_INTENSITY) / (hist_cumsum_norm[-1] - cm)
@@ -150,7 +151,8 @@ def histogram_equalize(im_orig):
     Inner function - find the next quantize values for each segment
 
     Inputs:
-        weighted_hist is the weighted histogram - the histogram of the image multiplied (per element) in the value of the bin
+        weighted_hist is the weighted histogram - the histogram of the image multiplied (per element)
+                        in the value of the bin
         hist is the original histogram
         his_cumsum - the cumsum of the hist
         z - the segments in which to find q's. array like
@@ -218,8 +220,8 @@ def find_z(n_quant, hist_cumsum, q=None):
 
     Outputs:
         im_quant - is the quantize output image.
-        error - is an array with shape (n_iter,) (or less) of the total intensities error for each iteration in the
-                   quantization procedure.
+        error - is an array with shape (n_iter,) (or less) of the total intensities error for each
+                iteration in the quantization procedure.
 
 '''
 
@@ -274,30 +276,33 @@ Notes:
     What we did in the 1d case was essentially Lloyds alg. for k-means clustering.
     To do the same here, we need to initialize the first centroids somehow, and then repeat the process using
     euclidean distance as our metric.
-    Although there are some efficient heuristic implementations (like scikit.cluster.kmeans) for clustering (which uses
-    randomized centroids and compares several different initializations), generally it is not very efficient
-    (unless using more complex implementations like Voronoi tessalations).
+    Although there are some efficient heuristic implementations (like scikit.cluster.kmeans) for clustering
+    (which uses randomized centroids and compares several different initializations), generally it is not
+    very efficient (unless using more complex implementations like Voronoi tessalations).
 
     Instead, I implemented the task in a different way.
-    I based my algorithm on the median cut algorithm, generalized to 3d. However, I've made a few changes to it.
-    First, in every iteration it doesn't split all of the current subspaces. Instead, it choses the heaviest one
-    (the one with the most pixels in it) so that more weight is given to small areas in the color space with most
-    of the pixels in it.
-    Furthermore, In order to account for really havy small volume rect s in he color space, I added another constraint.
-     At all time it holds the min_weight and min_vol of a box in order to be valid for a split
-     (initialized to totalVol/nQuants and totalPixels/nQuants). It only choose the heaviest one between the valid boxes.
-     If no valid box was found and there are not enough quants yet, both thresholds gets cut in half the search
-     continues.
+    I based my algorithm on the median cut algorithm, generalized to 3d. However, I've made a few changes to
+    it.
+    First, in every iteration it doesn't split all of the current subspaces. Instead, it choses the heaviest
+    one (the one with the most pixels in it) so that more weight is given to small areas in the color space
+    with most of the pixels in it.
+    Furthermore, In order to account for really havy small volume rect s in he color space, I added another
+    constraint.
+    At all time it holds the min_weight and min_vol of a box in order to be valid for a split
+    (initialized to totalVol/nQuants and totalPixels/nQuants). It only choose the heaviest one between the
+    valid boxes. If no valid box was found and there are not enough quants yet, both thresholds gets cut
+    in half the search continues.
     Second, my alg. doesn't only generate power of 2 of quants because of the system I justdescribedd.
     It can stop whenever it hits the needed number of quants.
-    Finally, I calculate the centeroids the same way like in the 1d case - for each box find the centeroid that
-    minimizes the squared error in the box.
+    Finally, I calculate the centeroids the same way like in the 1d case - for each box find the centeroid
+    that minimizes the squared error in the box.
 '''
 
 '''
     This class holds a 3d recd in a ed color space (RGB) and can perform several functions on it.
-    Besides being a data structure to hold the data of the box together and save calculation, it can also split
-    itself into to new boxes such the pixels will be approximately equally distributed between te new boxes
+    Besides being a data structure to hold the data of the box together and save calculation, it can also
+    split itself into to new boxes such the pixels will be approximately equally distributed between te new
+    boxes
 '''
 
 
@@ -307,7 +312,8 @@ class RGBBox:
         The other fields are the range in every axis
     '''
 
-    def __init__(self, im, ranger=(MIN_INTENSITY, 256), rangeg=(MIN_INTENSITY, 256), rangeb=(MIN_INTENSITY, 256)):
+    def __init__(self, im, ranger=(MIN_INTENSITY, 256), rangeg=(MIN_INTENSITY, 256),
+                        rangeb=(MIN_INTENSITY, 256)):
         self.ranger = ranger
         self.rangeg = rangeg
         self.rangeb = rangeb
@@ -324,7 +330,8 @@ class RGBBox:
     def median_split_by_long_axis(self):
         sliced_im = self.get_sliced_img(self.im)
         longestaxis = np.argmax(
-            (self.ranger[1] - self.ranger[0], self.rangeg[1] - self.rangeg[0], self.rangeb[1] - self.rangeb[0]))
+            (self.ranger[1] - self.ranger[0], self.rangeg[1] - self.rangeg[0],
+             self.rangeb[1] - self.rangeb[0]))
         sliced_im_1d = sliced_im[longestaxis, :]
 
         if len(sliced_im_1d) == 0:
@@ -351,7 +358,8 @@ class RGBBox:
                    RGBBox(self.im, self.ranger, self.rangeg, (median_in_axis, self.rangeb[1]))
 
     '''
-        Get image in the same format like above, and return only the part of it where its pixels fall into the range
+        Get image in the same format like above, and return only the part of it where its pixels
+        fall into the range
     '''
 
     def get_sliced_img(self, im):
@@ -373,7 +381,8 @@ class RGBBox:
     '''
 
     def get_vol(self):
-        return (self.ranger[1] - self.ranger[0]) * (self.rangeg[1] - self.rangeg[0]) * (self.rangeg[1] - self.rangeg[0])
+        return (self.ranger[1] - self.ranger[0]) * (self.rangeg[1] - self.rangeg[0]) * \
+               (self.rangeg[1] - self.rangeg[0])
 
 
 '''
@@ -415,14 +424,15 @@ def quantize_rgb(im_orig, n_quant, n_iter):
     im_quant[:, :, 0] = colorMap[im_uint[:, :, 0], im_uint[:, :, 1], im_uint[:, :, 2], 0]
     im_quant[:, :, 1] = colorMap[im_uint[:, :, 0], im_uint[:, :, 1], im_uint[:, :, 2], 1]
     im_quant[:, :, 2] = colorMap[im_uint[:, :, 0], im_uint[:, :, 1], im_uint[:, :, 2], 2]
-    distmat = np.sum(np.power(im_orig - im_quant, 2), axis=2)  # sum of squared distance between pixel to its centeroid
+    # sum of squared distance between pixel to its centeroid
+    distmat = np.sum(np.power(im_orig - im_quant, 2), axis=2)
     error = np.sum(distmat)
     return im_quant.astype(np.float32) / MAX_INTENSITY, error
 
 
 '''
-    Helper function which receives the boxes and the rest of the needed data and fill the 3d RGB space color map
-    with the centeroids
+    Helper function which receives the boxes and the rest of the needed data and fill the 3d RGB
+    space color map with the centeroids
 '''
 
 
@@ -444,16 +454,16 @@ def fill_color_map(boxes, colorMap, hist_b, hist_cumsum_b, hist_cumsum_g, hist_c
 
 
 '''
-    Helper function which iterates the boxes, chooses at each iteration the heaviest valid box and splits it until it
-    has n_quants boxes
+    Helper function which iterates the boxes, chooses at each iteration the heaviest valid box and splits it
+    until it has n_quants boxes
 '''
 
 
 def split2quants_boxes(boxes, im, min_box_vol2split, min_weight2split, n_quant):
     while len(boxes) < n_quant:  # iterate until enough quants have been found
         while True:  # Iterate until next valid heaviest box has been found
-            weights = [int(b.weight) if (b.vol > min_box_vol2split and b.weight > min_weight2split) else 0 for b
-                       in boxes]
+            weights = [int(b.weight) if (b.vol > min_box_vol2split and b.weight > min_weight2split)
+                       else 0 for b in boxes]
             heviestBoxIdx = np.argmax(weights)
             if weights[heviestBoxIdx] == 0:
                 # no more valid boxes in with these constraints - dividing min sizes
