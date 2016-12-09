@@ -25,12 +25,15 @@ def stretch(im, mn=0, mx=1):
 ffts = []
 def test_dft():
     print("Testing 1d DFT...")
-    for i, r in enumerate([np.cos(np.arange(100)), np.sin(np.arange(100)), np.power(np.arange(100), 2), np.arange(100)]):
+    monkey = sol2.read_image(images[2], 1)
+    for i, r in enumerate([np.cos(np.arange(100)), np.sin(np.arange(100)), np.power(np.arange(100), 2), np.arange(100), monkey[:, 0]]):
         im = stretch(r)
         npfft = np.fft.fft(im)
         myfft = sol2.DFT(im)
         if myfft.dtype != np.complex128:
             raise Exception("Failed in DFT - returned wrong type")
+        if myfft.shape != r.shape:
+            raise Exception("Failed in DFT - returned wrong shape")
         if not np.all(npfft == myfft):
             maxdiff = np.absolute(npfft - myfft).max()
             if maxdiff > EPSILON:
@@ -210,7 +213,6 @@ def compare_blurs():
 # TODO - test fourier against conv
 def run_all_tests():
     print("Testing only grey. starting")
-    test_blur_fourier()
     try:
         for test in [test_dft, test_idft, test_dft2, test_idft2, test_conv_der, test_fourier_der,
                      test_gauss_ker, test_blur_spatial, test_blur_fourier, compare_blurs]:

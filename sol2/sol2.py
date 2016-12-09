@@ -1,7 +1,39 @@
 import numpy as np
 from scipy.signal import convolve2d
 from numpy.matlib import repmat
-from sol1 import read_image
+
+
+# --------------------- From sol1 ------------------------
+from skimage.color import rgb2gray
+from scipy.misc import imread
+
+# Constants
+REP_GREY = 1
+REP_RGB = 2
+MIN_INTENSITY = 0
+MAX_INTENSITY = 255
+'''
+    Reads a given image file and converts it into a given representation
+        filename - string containing the image filename to read.
+        representation - representation code, either 1 or 2 defining if the output should be either a
+                        grayscale image (1) or an RGB image (2).
+        return im as np.float32 in range [0,1]
+'''
+
+
+def read_image(filename, representation):
+    im = imread(filename)
+    if (representation == REP_GREY) & (im.ndim == 2):
+        return im.astype(np.float32) / MAX_INTENSITY
+    elif (representation == REP_GREY) & (im.ndim == 3):
+        return rgb2gray(im).astype(np.float32)
+    elif representation == REP_RGB:  # assuming we are not asked to convert grey to rgb
+        return im.astype(np.float32) / MAX_INTENSITY
+    else:
+        raise Exception('Unsupported representation: {0}'.format(representation))
+
+# ------------------------------------------------------------------------------
+
 
 # TODO - use np.real_if_close ?
 
@@ -24,8 +56,8 @@ def DFT(signal):
     logex = (-2 * np.pi * 1j * np.arange(cols)) / cols
     exmat = np.exp(np.matmul(np.arange(cols).reshape(cols, 1), logex[np.newaxis, :]))
     fourier_signal = np.matmul(exmat, sig).transpose()
-    # if signal.ndim == 1:  # TODO - remove if not needed
-    #     fourier_signal = fourier_signal[0]
+    if signal.ndim == 1:  # TODO - remove if not needed
+        fourier_signal = fourier_signal[0]
     return fourier_signal.astype(np.complex128)
 
 '''
@@ -50,8 +82,8 @@ def IDFT(fourier_signal):
     logex = (2 * np.pi * 1j * np.arange(cols)) / cols
     exmat = np.exp(np.matmul(np.arange(cols).reshape(cols, 1), logex[np.newaxis, :]))
     signal = np.matmul(exmat, sig).transpose()
-    # if fourier_signal.ndim == 1:   # TODO - remove if not needed
-    #     signal = signal[0]
+    if fourier_signal.ndim == 1:   # TODO - remove if not needed
+        signal = signal[0]
     return signal
 
 
