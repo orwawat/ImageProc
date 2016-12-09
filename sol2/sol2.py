@@ -100,7 +100,7 @@ def IDFT2(fourier_signal):
 def derive_img(im, axis=0):
     if axis != 0:
         return derive_img(im.transpose()).transpose()
-    kernel = np.array([[-1, 0, 1]], dtype=np.float32)
+    kernel = np.array([[-1, 0, 1]], dtype=np.float32)  # TODO - make sure not [1 0 -1] or normalized by 1/2
     return convolve2d(im, kernel, mode='same')
 
 '''

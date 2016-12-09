@@ -8,7 +8,8 @@ import os
 
 EPSILON = 1e-7
 
-image_pth = r'/cs/usr/maor_i/safe/PycharmProjects/ImageProc/sol2/external'
+image_pth = r'C:\Users\Maor\Documents\ImageProc\current\external'
+#image_pth = r'/cs/usr/maor_i/safe/PycharmProjects/ImageProc/sol2/external'
 images = [os.path.join(image_pth, 'jerusalem.jpg'),
             os.path.join(image_pth, 'Low_Contrast.jpg'),
             os.path.join(image_pth, 'monkey.jpg'),
@@ -209,6 +210,7 @@ def compare_blurs():
 # TODO - test fourier against conv
 def run_all_tests():
     print("Testing only grey. starting")
+    test_blur_fourier()
     try:
         for test in [test_dft, test_idft, test_dft2, test_idft2, test_conv_der, test_fourier_der,
                      test_gauss_ker, test_blur_spatial, test_blur_fourier, compare_blurs]:

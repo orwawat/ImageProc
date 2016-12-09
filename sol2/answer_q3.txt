@@ -1,0 +1,12 @@
+Q3: What is the difference between the two results (Blurring in image space and blurring
+in Fourier space)?
+
+A: Usually, the main difference is how the convolution treats the image boundaries as opposed to how they are treated
+    in the freq. domain. In the spatial domain, we usually replicate, mirror or pad with 0's when reaching the
+    boundaries. In the frequency domain however, everything is treated in a cyclic manner. Thus, when blurring the
+    edge of the image we actually replace it with a weighted mean of the neighbors, which include the edge on the other
+    side of the image.
+
+    Since in this exercise we were told that we can treat the boundaries however we prefer, I used the option 'wrap'
+    (in the spatial domain convolution) so that it treats the image in a cyclic manner, and the results between the
+    two blurs are the same.

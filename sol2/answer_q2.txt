@@ -1,0 +1,12 @@
+Q2: What happens if the center of the gaussian (in the space domain) will not be at the
+    (0,0) of the image? Why does it happen?
+
+A: If the gaussian's center will not be properly positioned at the 0,0 of the image in the spatial case, we will get
+    The blurred image only broken up to 4 equal sized rectangles, and ordered in the wrong fashion.
+
+    This happens due to the convolution theorem. In the theorem it is stated that convolution in the spatial case is
+    equal to a point-wise multiplication in the frequency domain. since the kernel and the image are of different sizes,
+    we pad the kernel with 0's. Now, when we convolve we treat the center of the gaussian as its 0,0 but for the DFT,
+    its 0,0 is located in the top left corner. SO, when it gets transformed and multiplied, its as if we start the
+    blurring process from the middle of the image, and work our way down and right. since the freq. domain is cyclic,
+    we still get all the other parts of teh image, only ordered wrong.
