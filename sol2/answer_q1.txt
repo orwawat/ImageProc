@@ -1,8 +1,8 @@
 Q1: Why did you get two different magnitude images?
 
-A: When driving the image in both direction in the spatial space, we used the kernel [-1 0 1].
+A: When deriving the image in both directions in the spatial space, we used the kernel [1 0 -1].
     That actually means that for each pixel, we are calculating the change in intensity between the pixel before
     it (in a given axis) to the one after it. Since most gradients in natural images are not sharp (over 1 pixel),
-    we expect the values here to be greater that if we were finding the amount of change between each pixel to its
+    we expect the values here to be greater than if we were finding the amount of change between each pixel to its
     neighbor which is what we are doing in the fourier derivation case. So, the values we get are different between
-    the two methods because the pixels we compare are different in each method.
+    the two methods because the pixels we compare to get the derivation in a location are different in each method.

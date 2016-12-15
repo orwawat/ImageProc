@@ -1,5 +1,4 @@
-Q3: What is the difference between the two results (Blurring in image space and blurring
-in Fourier space)?
+Q3: What is the difference between the two results (Blurring in image space and blurring in Fourier space)?
 
 A: Usually, the main difference is how the convolution treats the image boundaries as opposed to how they are treated
     in the freq. domain. In the spatial domain, we usually replicate, mirror or pad with 0's when reaching the
