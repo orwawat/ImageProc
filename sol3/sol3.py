@@ -3,7 +3,39 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import convolve2d
 
-# TODO - add sertions that size is powers of 2
+# TODO - add assertions that size is powers of 2
+
+# --------------------- From sol1 ------------------------
+from skimage.color import rgb2gray
+from scipy.misc import imread
+
+# Constants
+REP_GREY = 1
+REP_RGB = 2
+MIN_INTENSITY = 0
+MAX_INTENSITY = 255
+CONV_MODE = 'mirror'
+
+def read_image(filename, representation):
+    """
+        Reads a given image file and converts it into a given representation
+            filename - string containing the image filename to read.
+            representation - representation code, either 1 or 2 defining if the output should be either a
+                            grayscale image (1) or an RGB image (2).
+            return im as np.float32 in range [0,1]
+    """
+    im = imread(filename)
+    if (representation == REP_GREY) & (im.ndim == 2):
+        return im.astype(np.float32) / MAX_INTENSITY
+    elif (representation == REP_GREY) & (im.ndim == 3):
+        return rgb2gray(im).astype(np.float32)
+    elif representation == REP_RGB:  # assuming we are not asked to convert grey to rgb
+        return im.astype(np.float32) / MAX_INTENSITY
+    else:
+        raise Exception('Unsupported representation: {0}'.format(representation))
+
+
+# ------------------------------------------------------------------------------
 
 
 def get_filter_kernel(filter_size):
@@ -25,17 +57,17 @@ def get_filter_kernel(filter_size):
     return ker / np.sum(ker)
 
 
-def down_sample(im, filter):
-    blurred_im = convolve(im, filter)
-    blurred_im = convolve(blurred_im, filter.transpose())
+def reduce(im, filter):
+    blurred_im = convolve(im, filter, mode=CONV_MODE)
+    blurred_im = convolve(blurred_im, filter.transpose(), mode=CONV_MODE)
     return blurred_im[::2, ::2]
 
 
-def up_sample(im, filter):
-    expanded_im = np.zeros((im.shape[0] * 2, im.shape[1] * 2))
-    expanded_im[::2, ::2] = im
-    expanded_im = convolve(expanded_im, 2 * filter.transpose())
-    return convolve(expanded_im, 2 * filter)
+def expand(im, filter):
+    expanded_im = np.zeros((im.shape[0] * 2, im.shape[1] * 2), dtype=np.float32)
+    expanded_im[::2, ::2] = im.copy()
+    expanded_im = convolve(expanded_im, 2*filter.transpose(), mode=CONV_MODE)
+    return convolve(expanded_im, 2*filter, mode=CONV_MODE)
 
 
 def build_gaussian_pyramid(im, max_levels, filter_size):
@@ -52,7 +84,7 @@ def build_gaussian_pyramid(im, max_levels, filter_size):
     filter_vec = get_filter_kernel(filter_size)
     pyr[0] = im.copy()
     for lv in range(1, levels):
-        pyr[lv] = down_sample(pyr[lv - 1], filter_vec)
+        pyr[lv] = reduce(pyr[lv - 1], filter_vec)
     return pyr, filter_vec
 
 
@@ -67,7 +99,7 @@ def build_laplacian_pyramid(im, max_levels, filter_size):
     """
     pyr, filter_vec = build_gaussian_pyramid(im, max_levels, filter_size)
     for lv in range(len(pyr) - 1):
-        pyr[lv] -= up_sample(pyr[lv + 1], filter_vec)
+        pyr[lv] -= expand(pyr[lv + 1], filter_vec)
     return pyr, filter_vec
 
 
@@ -80,9 +112,10 @@ def laplacian_to_image(lpyr, filter_vec, coeff):
     :return: img
     """
     # TODO Q1: What does it mean to multiply each level in a different value? What do we try to control on?
-    img = lpyr[-1] * coeff[-1]
+    weighted_pyr = [lpyr[i] * coeff[i] for i in range(len(lpyr))]
+    img = weighted_pyr[-1]
     for i in range(2, len(lpyr) + 1):
-        img = up_sample(img, filter_vec) + lpyr[-i] * coeff[-i]
+        img = expand(img, filter_vec) + weighted_pyr[-i]
     return img
 
 
@@ -144,16 +177,35 @@ def pyramid_blending(im1, im2, mask, max_levels, filter_size_im, filter_size_mas
     new_pyr = []
     for i in range(min(len(pyr1), len(pyr2), len(pyr_mask))):
         new_pyr.append(np.multiply(pyr1[i], pyr_mask[i]) + np.multiply(pyr2[i], (1 - pyr_mask[i])))
-    im_blend = laplacian_to_image(new_pyr, filter1, [1] * i)
+    im_blend = laplacian_to_image(new_pyr, filter1, [1] * (i+1))
     return im_blend.clip(0, 1).astype(np.float32)
 
+
+def blend_rgb_image(im1, im2, mask, max_levels, filter_size_im, filter_size_mask):
+    im_blend = np.zeros(im1.shape)
+    for dim in range(im1.ndim):
+        im_blend[:,:,dim] = pyramid_blending(im1[:,:,dim], im2[:,:,dim], mask, max_levels, filter_size_im, filter_size_mask)
+    return im_blend
 
 def blending_example1():
     """
 
     :return: im1, im2, mask, im_blend
     """
-    pass
+    # TODO - see if we are allowed
+    from scipy.misc import imresize
+    im1 = read_image(r"C:\Users\Maor\Documents\ImageProc\sol3\dome.jpg", 2)
+    valid_height = 2 ** int(np.log2(im1.shape[0]))
+    valid_width = 2 ** int(np.log2(im1.shape[1]))
+    im1 = imresize(im1, (valid_height, valid_width, im1.ndim)).astype(np.float32) / 255.0
+    im2 = read_image(r"C:\Users\Maor\Documents\ImageProc\sol3\fish4.jpg", 2)
+    im2 = imresize(im2, im1.shape).astype(np.float32) / 255.0
+    mask = 1-read_image(r"C:\Users\Maor\Documents\ImageProc\sol3\mask5.jpg", 1)
+    mask[mask<=0.5] = 0
+    mask[mask>0.5] = 1
+    mask = imresize(mask, im1.shape).astype(np.bool)
+    im_blend = blend_rgb_image(im1, im2, mask, 8, 5, 5)
+    plt.imshow(im_blend)
 
 
 def blending_example2():

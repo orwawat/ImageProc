@@ -23,6 +23,7 @@ def sample_valid_image(imgpth):
     return im[:valid_height, :valid_width]
 
 def test_gaus_pyr():
+    print("Start testing gaussian pyramid")
     max_size = 7
     for kersize in [3,5,7]:
         for impth in images_grey:
@@ -36,9 +37,11 @@ def test_gaus_pyr():
             for p in pyr:
                 if p.dtype != np.float32:
                     raise Exception("Pyramid has wrong dtype")
+    print("Done ok")
 
 
 def test_laplac_pyr():
+    print("Start testing Laplasian pyramid")
     max_size = 7
     for kersize in [3, 5, 7]:
         for impth in images_grey:
@@ -52,9 +55,10 @@ def test_laplac_pyr():
             for p in pyr:
                 if p.dtype != np.float32:
                     raise Exception("Pyramid has wrong dtype")
-
+    print("Done ok")
 
 def test_render_pyr():
+    print("Start testing rendering pyramids")
     max_size = 7
     for kersize in [3]:
         for impth in images_grey:
@@ -69,10 +73,11 @@ def test_render_pyr():
             sol3.display_pyramid(pyr, len(pyr))
 
             plt.show()
-            pylab.show(block=True)
-
+    pylab.show(block=True)
+    print("Done ok")
 
 def test_lap2image():
+    print("Start testing laplacian pyramid to image")
     max_size = 7
     for kersize in [3, 5, 7]:
         for impth in images_grey:
@@ -81,14 +86,21 @@ def test_lap2image():
             rec_im = sol3.laplacian_to_image(pyr, filter, [1]*len(pyr))
 
             diff_im = np.abs(rec_im - im)
-            if diff_im.max() > 1E-12:
-                raise Exception("Reconstructed image is too different from original")
+            if diff_im.max() > 1E-7:
+                raise Exception("Reconstructed image is too different from original. minDiff: {0}, meanDiff: {1}, maxDiff: {2}".format(diff_im.min(), diff_im.mean(), diff_im.max()))
+    print("Done ok")
 
+
+def test_examples():
+    print("Start testing examples")
+    sol3.blending_example1()
+    print("Done")
 
 def run_all_tests():
-    print("Testing only grey. starting")
+    print("Testing sol3. starting")
     try:
-        for test in [test_lap2image, test_gaus_pyr, test_laplac_pyr, test_render_pyr]:
+        test_examples()
+        for test in [test_gaus_pyr, test_laplac_pyr, test_render_pyr, test_lap2image, test_examples]:
             test()
     except Exception as e:
         print("Tests failed. error: {0}".format(e))
