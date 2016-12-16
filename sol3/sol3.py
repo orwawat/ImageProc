@@ -1,6 +1,10 @@
 from scipy.ndimage.filters import convolve
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.signal import convolve2d
+
+# TODO - add sertions that size is powers of 2
+
 
 def get_filter_kernel(filter_size):
     """
@@ -17,19 +21,22 @@ def get_filter_kernel(filter_size):
         raise Exception("Only odd numbers are allowed as kernel sizes")
     ker = np.array([[1]], dtype=np.float32)
     for i in range(filter_size - 1):
-        ker = convolve(ker, np.array([[1, 1]]))
+        ker = convolve2d(ker, np.array([[1, 1]]))
     return ker / np.sum(ker)
+
 
 def down_sample(im, filter):
     blurred_im = convolve(im, filter)
     blurred_im = convolve(blurred_im, filter.transpose())
     return blurred_im[::2, ::2]
 
+
 def up_sample(im, filter):
-    expanded_im = np.zeros((im.shape[0]*2,im.shape[1]*2))
+    expanded_im = np.zeros((im.shape[0] * 2, im.shape[1] * 2))
     expanded_im[::2, ::2] = im
-    expanded_im = convolve(expanded_im, 2*filter.transpose())
-    return convolve(expanded_im, 2*filter)
+    expanded_im = convolve(expanded_im, 2 * filter.transpose())
+    return convolve(expanded_im, 2 * filter)
+
 
 def build_gaussian_pyramid(im, max_levels, filter_size):
     """
@@ -40,13 +47,14 @@ def build_gaussian_pyramid(im, max_levels, filter_size):
                         in constructing the pyramid filter
     :return: pyr, filter_vec
     """
-    levels = min(max_levels, int(np.log2(im.shape[0]//16)), int(np.log2(im.shape[1]//16)))
+    levels = min(max_levels, int(np.log2(im.shape[0] // 8)), int(np.log2(im.shape[1] // 8)))
     pyr = [0] * levels
     filter_vec = get_filter_kernel(filter_size)
-    pyr[0] = im
+    pyr[0] = im.copy()
     for lv in range(1, levels):
-        pyr[lv] = down_sample(pyr[lv-1], filter_vec)
+        pyr[lv] = down_sample(pyr[lv - 1], filter_vec)
     return pyr, filter_vec
+
 
 def build_laplacian_pyramid(im, max_levels, filter_size):
     """
@@ -58,9 +66,10 @@ def build_laplacian_pyramid(im, max_levels, filter_size):
     :return: pyr, filter_vec
     """
     pyr, filter_vec = build_gaussian_pyramid(im, max_levels, filter_size)
-    for lv in range(len(pyr)-1):
-        pyr[lv] = up_sample(pyr[lv + 1], filter_vec)
+    for lv in range(len(pyr) - 1):
+        pyr[lv] -= up_sample(pyr[lv + 1], filter_vec)
     return pyr, filter_vec
+
 
 def laplacian_to_image(lpyr, filter_vec, coeff):
     """
@@ -72,13 +81,14 @@ def laplacian_to_image(lpyr, filter_vec, coeff):
     """
     # TODO Q1: What does it mean to multiply each level in a different value? What do we try to control on?
     img = lpyr[-1] * coeff[-1]
-    for i in range(2, len(lpyr)+1):
+    for i in range(2, len(lpyr) + 1):
         img = up_sample(img, filter_vec) + lpyr[-i] * coeff[-i]
     return img
 
+
 def linear_stretch(im, new_min, new_max):
     old_min, old_max = im.min(), im.max()
-    return ((im - old_min) * (new_max - new_min) / (old_max - old_min) ).astype(np.float32)
+    return ((im - old_min) * (new_max - new_min) / (old_max - old_min)).astype(np.float32)
 
 
 def render_pyramid(pyr, levels):
@@ -99,6 +109,7 @@ def render_pyramid(pyr, levels):
         cur_col = end_col
     return res
 
+
 def display_pyramid(pyr, levels):
     """
 
@@ -107,4 +118,47 @@ def display_pyramid(pyr, levels):
     :return:
     """
     res = render_pyramid(pyr, levels)
-    plt.imshow(res)
+    plt.imshow(res, cmap=plt.cm.gray)
+
+
+def pyramid_blending(im1, im2, mask, max_levels, filter_size_im, filter_size_mask):
+    """
+
+    :param im1: input grayscale image to be blended.
+    :param im2: input grayscale image to be blended. same dimensions as im1
+    :param mask: a boolean (i.e. dtype == np.bool) mask containing True and False representing which parts
+                    of im1 and im2 should appear in the resulting im_blend. Note that a value of True corresponds to 1,
+                    and False corresponds to 0. same dimensions as im1.
+    :param max_levels: the max_levels parameter you should use when generating the Gaussian and Laplacian
+                        pyramids.
+    :param filter_size_im: the size of the Gaussian filter (an odd scalar that represents a squared filter) which
+                            defining the filter used in the construction of the Laplacian pyramids of im1 and im2.
+    :param filter_size_mask: the size of the Gaussian filter(an odd scalar that represents a squared filter) which
+                            defining the filter used in the construction of the Gaussian pyramid of mask.
+    :return: im_blend
+    """
+    pyr1, filter1 = build_laplacian_pyramid(im1, max_levels, filter_size_im)
+    pyr2, filter2 = build_laplacian_pyramid(im2, max_levels, filter_size_im)
+    pyr_mask, filter_mask = build_gaussian_pyramid(mask.astype(np.float32), max_levels, filter_size_mask)
+
+    new_pyr = []
+    for i in range(min(len(pyr1), len(pyr2), len(pyr_mask))):
+        new_pyr.append(np.multiply(pyr1[i], pyr_mask[i]) + np.multiply(pyr2[i], (1 - pyr_mask[i])))
+    im_blend = laplacian_to_image(new_pyr, filter1, [1] * i)
+    return im_blend.clip(0, 1).astype(np.float32)
+
+
+def blending_example1():
+    """
+
+    :return: im1, im2, mask, im_blend
+    """
+    pass
+
+
+def blending_example2():
+    """
+
+    :return: im1, im2, mask, im_blend
+    """
+    pass
