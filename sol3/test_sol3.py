@@ -83,6 +83,8 @@ def test_lap2image():
         for impth in images_grey:
             im = sample_valid_image(impth)
             pyr, filter = sol3.build_laplacian_pyramid(im, max_size, kersize)
+            rec_im = sol3.laplacian_to_image(pyr, filter, [4]+[1]*(len(pyr)-1))
+            rec_im = sol3.laplacian_to_image(pyr, filter, [1]*(len(pyr)-1)+[4])
             rec_im = sol3.laplacian_to_image(pyr, filter, [1]*len(pyr))
 
             diff_im = np.abs(rec_im - im)
@@ -99,7 +101,6 @@ def test_examples():
 def run_all_tests():
     print("Testing sol3. starting")
     try:
-        test_examples()
         for test in [test_gaus_pyr, test_laplac_pyr, test_render_pyr, test_lap2image, test_examples]:
             test()
     except Exception as e:

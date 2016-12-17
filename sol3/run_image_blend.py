@@ -22,7 +22,7 @@ def main():
     mask[mask <= 0.5] = 0
     mask[mask > 0.5] = 1
     mask = imresize(mask, im1.shape).astype(np.bool)
-    im_blend = sol3.blend_rgb_image(im1, im2, mask, 8, 5, 5)
+    im_blend = sol3.blend_rgb_image(im1, im2, mask, 8, 5, 3)
     plt.imshow(im_blend)
     pylab.show(block=True)
 

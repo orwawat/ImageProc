@@ -1,0 +1,4 @@
+What happens (and why this happens) to the result blending from section 4 image when:
+Q3: Blending is performed with a varying number of pyramid levels (max_levels = 1,2,3,4,5,...).
+
+A:
