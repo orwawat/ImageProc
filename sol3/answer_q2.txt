@@ -1,4 +1,6 @@
 What happens (and why this happens) to the result blending from section 4 image when:
 Q2: Blending is performed with different image filters (filter_size_im = 1,3,5,7...).
 
-A:
+A: The higher the kernel size, the more (high) frequencies we discard when downsampling, so each level in the laplacian
+    pyramid will include a bigger band of frequencies and the blending of two corresponding levels will look more
+    coarse, and will generate more of a 'halo' effect.

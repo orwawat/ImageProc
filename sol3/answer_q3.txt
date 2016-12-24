@@ -1,4 +1,9 @@
 What happens (and why this happens) to the result blending from section 4 image when:
 Q3: Blending is performed with a varying number of pyramid levels (max_levels = 1,2,3,4,5,...).
 
-A:
+A: The more leven used, the lower frequencies that will be blended together. combining with the bluring kernel of the
+    mask, we get the result that in lower frequencies, the 'stitches' become more blurring, causing something like an
+    'opacity' effect (only on low frequencies, i.e general forms and colors). This will make the blending more natural
+    and cause the edge where one image ends and another begin t be more gradual and more natural. too many layers
+    though, if the images has very different colors may result in color transformation in more distant regions of
+    the image and can also cause some halos.

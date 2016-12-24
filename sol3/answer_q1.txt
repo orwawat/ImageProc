@@ -2,6 +2,6 @@ Q1: What does it mean to multiply each level in a different value? What do we tr
 
 A: Each level of the Laplacian pyramid is a different band of frequencies from the original image.
     The base level (same resolution like the original image) is the highest frequencies, then lower frequencies and
-    so on. The tip of the pyramid is the lowest frequencies. By adding the coefficient vector, we control the mixture
-    rate between frequencies. having more weight in the high frequencies will result in sharpening, while ore weight
-    on lower frequencies will blur the resulting image.
+    so on. The tip of the pyramid (lowes resolution image) is the lowest frequencies. By adding the coefficient vector,
+    we control the mixture rate between frequencies. having more weight in the high frequencies will result in
+    sharpening, while ore weight on lower frequencies will blur the resulting image.
