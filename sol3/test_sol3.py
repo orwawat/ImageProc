@@ -63,12 +63,9 @@ def test_render_pyr():
     for kersize in [3]:
         for impth in images_grey:
             im = sample_valid_image(impth)
-            plt.figure()
             plt.title('Image: {0}, KerSize: {1}'.format(impth, kersize))
             pyr, filter = sol3.build_gaussian_pyramid(im, max_size, kersize)
-            plt.subplot(2,1,1)
             sol3.display_pyramid(pyr, len(pyr))
-            plt.subplot(2,1,2)
             pyr, filter = sol3.build_laplacian_pyramid(im, max_size, kersize)
             sol3.display_pyramid(pyr, len(pyr))
 
@@ -96,6 +93,7 @@ def test_lap2image():
 def test_examples():
     print("Start testing examples")
     sol3.blending_example1()
+    sol3.blending_example2()
     print("Done")
 
 def run_all_tests():
