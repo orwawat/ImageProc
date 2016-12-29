@@ -277,7 +277,7 @@ def show_example(title, im1, im2, mask, im_blend):
     plt.axis('off')
 
     plt.subplot(2, 2, 3)
-    plt.imshow(mask)
+    plt.imshow(mask, cmap=plt.cm.gray)
     plt.title('mask')
     plt.axis('off')
 
@@ -296,7 +296,7 @@ def blending_example1():
     """
     im1 = read_image(relpath('externals/baby_elephant.jpg'), 2)
     im2 = read_image(relpath('externals/butterfly.jpg'), 2)
-    mask = load_mask(relpath('externals/elephant_butterfly_mask.jpg'))
+    mask = load_mask(relpath('externals/elephant_butterfly_mask.png'))
     im_blend = blend_rgb_image(im1, im2, mask, 3, 3, 3)
     show_example('Example 1: Baby-Elephant', im1, im2, mask, im_blend)
     return im1, im2, mask, im_blend
@@ -309,9 +309,7 @@ def blending_example2():
     """
     im1 = read_image(relpath('externals/snowboarder.jpg'), 2)
     im2 = read_image(relpath('externals/dog.jpg'), 2)
-    mask = load_mask(relpath('externals/snowboarder_dog_mask.jpg'))
+    mask = load_mask(relpath('externals/snowboarder_dog_mask.png'))
     im_blend = blend_rgb_image(im1, im2, mask, 6, 5, 11)
     show_example('Example 2: SnowboarDog', im1, im2, mask, im_blend)
     return im1, im2, mask, im_blend
-
-blending_example1()
