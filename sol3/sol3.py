@@ -13,7 +13,7 @@ REP_GREY = 1
 REP_RGB = 2
 MIN_INTENSITY = 0
 MAX_INTENSITY = 255
-CONV_MODE = 'mirror'
+CONV_MODE = 'reflect'
 
 
 def read_image(filename, representation):
@@ -54,8 +54,19 @@ def get_filter_kernel(filter_size):
     ker = np.array([[1]], dtype=np.float32)
     for i in range(filter_size - 1):
         ker = convolve2d(ker, np.array([[1, 1]]))
-    return ker / np.sum(ker)
+    return (ker / np.sum(ker)).astype(np.float32)
 
+
+
+def blur_im(im, filter):
+    """
+    Helper function which blurs the given image in both directions with the given filter
+    :param im: Image to be blurred
+    :param filter:  filter to blurwith
+    :return: A blur copy of the image
+    """
+    blurred_im = convolve(im, filter, mode=CONV_MODE)
+    return convolve(blurred_im, filter.transpose(), mode=CONV_MODE).astype(np.float32)
 
 def reduce(im, filter):
     """
@@ -65,9 +76,7 @@ def reduce(im, filter):
     :param filter: The filter to use in the blurring phase
     :return: The reduced image
     """
-    blurred_im = convolve(im, filter, mode=CONV_MODE)
-    blurred_im = convolve(blurred_im, filter.transpose(), mode=CONV_MODE)
-    return blurred_im[::2, ::2]
+    return blur_im(im, filter)[::2, ::2]
 
 
 def expand(im, filter):
@@ -80,8 +89,7 @@ def expand(im, filter):
     """
     expanded_im = np.zeros((im.shape[0] * 2, im.shape[1] * 2), dtype=np.float32)
     expanded_im[::2, ::2] = im.copy()
-    expanded_im = convolve(expanded_im, 2 * filter.transpose(), mode=CONV_MODE)
-    return convolve(expanded_im, 2 * filter, mode=CONV_MODE).astype(np.float32)
+    return blur_im(expanded_im, filter*2)
 
 
 def build_gaussian_pyramid(im, max_levels, filter_size):
@@ -151,7 +159,7 @@ def linear_stretch(im, new_min, new_max):
     :return: The stretched imaage
     """
     old_min, old_max = im.min(), im.max()
-    return ((im - old_min) * (new_max - new_min) / (old_max - old_min)).astype(np.float32)
+    return (((im - old_min) * (new_max - new_min) / (old_max - old_min)) + new_min).astype(np.float32)
 
 
 def render_pyramid(pyr, levels):
