@@ -1,5 +1,4 @@
 import numpy as np
-import sol1
 import sol3
 import matplotlib.pyplot as plt
 from matplotlib import pylab
@@ -17,7 +16,7 @@ images = [os.path.join(image_pth, 'jerusalem.jpg'),
 images_grey = images # + [os.path.join(image_pth, 'head-shot_grey.jpg')]
 
 def sample_valid_image(imgpth):
-    im = sol1.read_image(imgpth, 1)
+    im = sol3.read_image(imgpth, 1)
     valid_height = 2 ** int(np.log2(im.shape[0]))
     valid_width = 2 ** int(np.log2(im.shape[1]))
     return im[:valid_height, :valid_width]
