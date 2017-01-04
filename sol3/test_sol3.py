@@ -1,16 +1,13 @@
-import os
-
-import matplotlib.pyplot as plt
 import numpy as np
-import sol3_other as ref
-from matplotlib import pylab
-
 import sol3
-from extras import sol1
+import matplotlib.pyplot as plt
+from matplotlib import pylab
+from scipy.ndimage.filters import gaussian_filter
+import os
 
 EPSILON = 1e-7
 
-image_pth = r'C:\Users\Maor\Documents\ImageProc\current\external'
+image_pth = r'/cs/usr/maor_i/safe/PycharmProjects/ImageProc/sol2/external'
 #image_pth = r'/cs/usr/maor_i/safe/PycharmProjects/ImageProc/sol2/external'
 images = [os.path.join(image_pth, 'jerusalem.jpg'),
             os.path.join(image_pth, 'Low_Contrast.jpg'),
@@ -19,7 +16,7 @@ images = [os.path.join(image_pth, 'jerusalem.jpg'),
 images_grey = images # + [os.path.join(image_pth, 'head-shot_grey.jpg')]
 
 def sample_valid_image(imgpth):
-    im = sol1.read_image(imgpth, 1)
+    im = sol3.read_image(imgpth, 1)
     valid_height = 2 ** int(np.log2(im.shape[0]))
     valid_width = 2 ** int(np.log2(im.shape[1]))
     return im[:valid_height, :valid_width]
@@ -29,18 +26,11 @@ def test_gaus_pyr():
     max_size = 7
     if sol3.get_filter_kernel(3).dtype != np.float32:
         raise Exception("Kernel type is wrong")
-    if not np.all( sol3.get_filter_kernel(5) == ref.getGaussVec(5)):
-        raise Exception("Kernel is wrong")
+
     for kersize in [3,5,7]:
         for impth in images_grey:
             im = sample_valid_image(impth)
             pyr, filter = sol3.build_gaussian_pyramid(im, max_size, kersize)
-            pyr2, filter2 = ref.build_gaussian_pyramid(im, max_size, kersize)
-            if not np.all(filter == filter2) or len(pyr) != len(pyr2) or type(pyr)!=type(pyr2):
-                raise Exception("Failed - wrong filter")
-            for i in range(len(pyr)):
-                if not np.all(pyr[i]== pyr2[i]):
-                    raise Exception("Failed - wrong filter")
 
             if len(pyr) > max_size:
                 raise Exception("Pyramid is too long")
@@ -59,15 +49,6 @@ def test_laplac_pyr():
         for impth in images_grey:
             im = sample_valid_image(impth)
             pyr, filter = sol3.build_laplacian_pyramid(im, max_size, kersize)
-            pyr2, filter2 = ref.build_laplacian_pyramid(im, max_size, kersize)
-
-            if not np.all(filter == filter2) or len(pyr) != len(pyr2) or type(pyr)!=type(pyr2):
-                raise Exception("Failed - wrong filter")
-            for i in range(len(pyr)):
-                if np.abs(pyr[i]-pyr2[i]).max() > 5E-7:
-                    raise Exception("Failed - pyramid is different in i: {0}".format(i), kersize, np.abs(pyr[i]-pyr2[i]).max(), np.abs(pyr[i]-pyr2[i]).mean())
-                if pyr2[i].dtype != np.float32:
-                    print(">????????????????")
 
             if len(pyr) > max_size:
                 raise Exception("Pyramid is too long")
@@ -85,24 +66,20 @@ def test_render_pyr():
         for impth in images_grey:
             im = sample_valid_image(impth)
             pyr, filter = sol3.build_gaussian_pyramid(im, max_size, kersize)
-            pyr2, filter2 = ref.build_gaussian_pyramid(im, max_size, kersize)
             sol3.display_pyramid(pyr, len(pyr))
-            ref.display_pyramid(pyr2, len(pyr2))
+            sol3.display_pyramid(pyr, len(pyr)-1)
+            sol3.display_pyramid(pyr, len(pyr)-2)
+            sol3.display_pyramid(pyr, len(pyr)-3)
+            sol3.display_pyramid(pyr, len(pyr)-4)
             impyr = sol3.render_pyramid(pyr, len(pyr))
-            impyr2 = ref.render_pyramid(pyr2, len(pyr2))
-            if np.abs(impyr - impyr2).max() > 1E-7:
-                raise Exception("Failed - pyramid is different in ",
-                                np.abs(impyr - impyr2).max(), np.abs(impyr - impyr2).mean())
 
             pyr, filter = sol3.build_laplacian_pyramid(im, max_size, kersize)
-            pyr2, filter2 = ref.build_laplacian_pyramid(im, max_size, kersize)
             sol3.display_pyramid(pyr, len(pyr))
-            ref.display_pyramid(pyr2, len(pyr2))
+            sol3.display_pyramid(pyr, len(pyr) - 1)
+            sol3.display_pyramid(pyr, len(pyr) - 2)
+            sol3.display_pyramid(pyr, len(pyr) - 3)
+            sol3.display_pyramid(pyr, len(pyr) - 4)
             impyr = sol3.render_pyramid(pyr, len(pyr))
-            impyr2 = ref.render_pyramid(pyr2, len(pyr2))
-            if np.abs(impyr - impyr2).max() > 5E-7:
-                raise Exception("Failed - pyramid is different in ",
-                                np.abs(impyr - impyr2).max(), np.abs(impyr - impyr2).mean())
 
             plt.show()
     plt.show()
