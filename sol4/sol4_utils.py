@@ -53,8 +53,8 @@ def blur_spatial(im, kernel_size):
     if kernel_size == 1:
         return im
     ker = get_filter_kernel(kernel_size)
-    blur_im = convolve2d(im, ker, mode='same', boundary='wrap')  # wrap to match how the fourier blur works
-    return blur_im.astype(np.float32)
+    return blur_im(im, ker)
+
 # ------------------------------------------------------------------------------
 
 # --------------------- From sol3 ------------------------
