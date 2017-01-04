@@ -1,8 +1,15 @@
 import sol4
 from sol4_utils import read_image, build_gaussian_pyramid
 import matplotlib.pyplot as plt
+from sol4_add import spread_out_corners
 
 def test_harris_detector():
+    im = read_image('external/backyard1.jpg', 1)
+    plt.figure()
+    res = spread_out_corners(im,7,7,15)
+    plt.imshow(im, cmap=plt.cm.gray)
+    plt.scatter(res[:, 0], res[:, 1])
+    plt.show(block=True)
     for pth in ['external/office1.jpg', 'external/office2.jpg']:
         plt.figure()
         im = read_image(pth, 1)
@@ -44,7 +51,7 @@ def test_matches():
     plt.scatter(mpos2[:, 0], mpos2[:, 1])
 
     plt.show()
-    H, inliers = sol4.ransac_homography(mpos1, mpos2, 15, 0.5)
+    H, inliers = sol4.ransac_homography(mpos1, mpos2, 15, 5)
     sol4.display_matches(im1, im2, mpos1, mpos2, inliers)
 
 def main():

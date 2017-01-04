@@ -13,7 +13,7 @@ BLUR_KER_SIZE = 3
 DERIVE_KER = np.array([[1, 0, -1]], dtype=np.float32)
 M = 7
 N = 7
-SPOC_RADIUS = 3
+SPOC_RADIUS = 15
 DESC_RADIUS = 3
 
 
@@ -57,15 +57,18 @@ def harris_corner_detector(im):
 def map_coord_2_level(pos, li=0, lj=2):
     return pos * 2**(li-lj)
 
-def get_windows_coords(pos, desc_rad):
+def get_windows_coords(pos, desc_rad, axis=0):
     if pos.ndim > 1:
         coords_x = get_windows_coords(pos[:, 0], desc_rad)
-        coords_y = get_windows_coords(pos[:, 1], desc_rad)
+        coords_y = get_windows_coords(pos[:, 1], desc_rad, axis=1)
         return np.hstack((coords_x, coords_y))
 
     k = desc_rad * 2 + 1
     coords = repmat(pos[:, np.newaxis], 1, k**2)
-    inddiff = repmat(np.arange(-desc_rad, desc_rad+1), pos.size, k)
+    if axis==0:
+        inddiff = repmat(np.arange(-desc_rad, desc_rad+1), pos.size, k)
+    else:
+        inddiff = repmat(np.hstack([[i]*k for i in range(-desc_rad,desc_rad+1)]), pos.size, 1)
     coords += inddiff
     return coords.reshape((1,-1)).transpose()
     # coords = np.zeros((pos.shape[0]*(k**2), 2))
@@ -86,6 +89,7 @@ def sample_descriptor(im, pos, desc_rad):
     k = desc_rad * 2 + 1
     pos_in_l3 = map_coord_2_level(pos)
     coords = get_windows_coords(pos_in_l3, desc_rad).transpose()
+    # Pretty sure the bug is in the reshape TODO
     desc = map_coordinates(im, coords).reshape((k**2, -1)).transpose()
 
     # normalize dsec
@@ -200,5 +204,5 @@ def display_matches(im1, im2, pos1, pos2, inliers):
              ms=0)
 
     #plt.axes('off')
-    plt.show()
+    plt.show(block=True)
 
