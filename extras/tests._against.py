@@ -1,8 +1,8 @@
-
-import sol1 as sol1
 import matplotlib.pyplot as plt
 import numpy as np
+
 import current.sol1 as test_sol1
+from extras import sol1 as sol1
 
 images = [r"C:\Users\Maor\Documents\ImageProc\external\jerusalem.jpg",
           r"C:\Users\Maor\Documents\ImageProc\external\Low Contrast.jpg",

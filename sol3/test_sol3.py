@@ -1,11 +1,12 @@
-import numpy as np
-import sol1
-import sol3
-import matplotlib.pyplot as plt
-from matplotlib import pylab
-from scipy.ndimage.filters import gaussian_filter
 import os
+
+import matplotlib.pyplot as plt
+import numpy as np
 import sol3_other as ref
+from matplotlib import pylab
+
+import sol3
+from extras import sol1
 
 EPSILON = 1e-7
 

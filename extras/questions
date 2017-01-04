@@ -1,0 +1,12 @@
+should we handle grey/rgb float images in read ([0,1])
+read image - normalized to [0,1]? if in [0,0.5]?
+where do we stretch the histogram in the equalization?
+where to clip and where not to - if not clipping what about histogram eq? expects 0,1
+how to check everything is ok
+tests and comapre?
+bonus
+quantize float 32? transfor to uint8 before?
+round in quant in very iteration or not?
+
+in initial segments, what if we have 1,1,1,1,1,1,30 and asks for 3 quants
+what do you check on the input?
