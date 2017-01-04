@@ -1,11 +1,22 @@
 from sol4_utils import *
-from sol4_add import non_maximum_suppression as nms
+from sol4_add import non_maximum_suppression as nms, spread_out_corners as spoc, least_squares_homography as lsh
 import numpy as np
 from scipy.signal import convolve2d
+from scipy.ndimage import map_coordinates
+import matplotlib.pyplot as plt
+import matplotlib.lines as lines
+
+# TODO - ret type in all functions!
 
 K = 0.04
 BLUR_KER_SIZE = 3
 DERIVE_KER = np.array([[1, 0, -1]], dtype=np.float32)
+M = 7
+N = 7
+SPOC_RADIUS = 7
+DESC_RADIUS = 3
+MIN_SCORE = 0.5
+
 
 def derive_img(im, axis=0):
     """
@@ -42,3 +53,132 @@ def harris_corner_detector(im):
     det_M = np.multiply(Ix2,Iy2) - np.power(IxIy, 2)
     R = det_M - K*np.power(trace_M,2)
     return np.where(nms(R))
+
+
+def map_coord_2_level(pos, li=0, lj=2):
+    return pos * 2**(li-lj)
+
+def get_windows_coords(pos, desc_rad):
+    k = desc_rad * 2 + 1
+    coords = np.zeros((pos.shape[1]*(k**2), 2))
+    coords[k//2,k//2,:] = 0
+    return coords
+# TODO - not done!
+
+def sample_descriptor(im, pos, desc_rad):
+    """
+
+    :param im: − grayscale image to sample within.
+    :param pos: − An array with shape (N,2) of [x,y] positions to sample descriptors in im.
+    :param desc_rad: − ”Radius” of descriptors to compute (see below).
+    :return: desc − A 3D array with shape (K,K,N) containing the ith descriptor at desc(:,:,i).
+                The per−descriptor dimensions KxK are related to the desc rad argument as follows K = 1+2∗desc rad.
+    """
+    k = desc_rad * 2 + 1
+    pos_in_l3 = map_coord_2_level(pos)
+    coords = get_windows_coords(pos_in_l3, desc_rad)
+    desc = map_coordinates(im, coords).reshape((k**2, pos.shape[1]))
+
+    # normalize dsec
+    desc = desc - np.mean(desc, axis=1)
+    desc = desc / np.linalg.norm(desc, axis=1)
+    return desc.reshape((k,k,pos.shape[1])).astype(np.float32)
+
+def find_features(pyr):
+    """
+    :param pyr: Gaussian pyramid of a grayscale image having 3 levels.
+    :return:
+        pos − An array with shape (N,2) of [x,y] feature location per row found in the (third pyramid level of the)
+                image. These coordinates are provided at the pyramid level pyr[0].
+        desc − A feature descriptor array with shape (K,K,N).
+    """
+    pos = spoc(pyr[0], M, N, SPOC_RADIUS)
+    desc = sample_descriptor(pyr[2], pos, DESC_RADIUS)
+    return pos, desc
+
+# TODO - in the next two functions need to make sure the axes and indexing are correct
+def get_sec_largest(mat, axis=0):
+    if axis != 0:
+        return derive_img(mat.transpose()).transpose()
+    m = mat.copy()
+    m[m.argmax(axis=0)] = m.min()
+    return m.max(axis=0)
+
+def match_features(desc1, desc2, min_score):
+    """
+    :param desc1: A feature descriptor array with shape (K,K,N1).
+    :param desc2: A feature descriptor array with shape (K,K,N2).
+    :param min_score: Minimal match score between two descriptors required to be regarded as corresponding points.
+    :return:
+        match ind1 − Array with shape (M,) and dtype int of matching indices in desc1.
+        match ind2 − Array with shape (M,) and dtype int of matching indices in desc2.
+    """
+    d1 = desc1.reshape((desc1.shape[2], -1))
+    d2 = desc2.reshape((desc2.shape[2], -1)).transpose()
+    scores = np.matmul(d1, d2)
+    sec_larg_rows = get_sec_largest(scores)[np.newaxis,:]
+    sec_larg_cols = get_sec_largest(scores, 1)[:,np.newaxis]
+    first_prop = scores >= sec_larg_cols
+    second_prop = scores >= sec_larg_rows
+    third_prop = scores >= MIN_SCORE
+    matches = np.logical_and(np.logical_and(first_prop, second_prop), third_prop)
+    return matches[0], matches[1]
+
+
+def apply_homography(pos1, H12):
+    """
+    :param pos1: An array with shape (N,2) of [x,y] point coordinates.
+    :param H12: A 3x3 homography matrix.
+    :return: An array with the same shape as pos1 with [x,y] point coordinates in image i+1
+                obtained from transforming pos1 using H12.
+    """
+    xyz1 = np.ones((3, pos1.shape[0]))
+    xyz1[0:1,:] = pos1.transpose()
+    xyz2 = np.matmul(H12, xyz1)
+    xy2 = xyz2[0:1,:] / xyz2[2,:]
+    return xy2.transpose()
+
+
+def ransac_homography(pos1, pos2, num_iters, inlier_tol):
+    """
+    :param pos1: An Array, with shape (N,2) containing n rows of [x,y] coordinates of matched points.
+    :param pos2: see pos1
+    :param num_iters: Number of RANSAC iterations to perform.
+    :param inlier_tol: inlier tolerance threshold.
+    :return:
+            H12 − A 3x3 normalized homography matrix.
+            inliers − An Array with shape (S,) where S is the number of inliers, containing the indices in
+                    pos1/pos2 of the maximal set of inlier matches found.
+    """
+    N = range(pos1.shape[0])
+    inliers = np.array()
+    for n in range(num_iters):
+        rnd_ind = np.random.choice(N, 4)
+        H = lsh(pos1[rnd_ind,:], pos2[rnd_ind, :])
+        sqdiff = np.linalg.norm(apply_homography(H, pos1) - pos2, axis=1)
+        inlierstemp = np.where(sqdiff < inlier_tol)[0]
+        if inlierstemp.size > inliers.size:
+            inliers = inlierstemp
+    return lsh(pos1[inliers], pos2[inliers]), inliers
+
+
+def display_matches(im1, im2, pos1, pos2, inliers):
+    """
+    :param im1: grayscale image
+    :param im2: grayscale image
+    :param pos1, pos2: − Two arrays with shape (N,2) each, containing N rows of [x,y] coordinates of matched
+                            points in im1 and im2 (i.e. the match of the ith coordinate is pos1[i,:] in
+                            im1 and pos2[i,:] in im2)
+    :param inliers: An array with shape (S,) of inlier matches (e.g. see output of ransac homography)
+    """
+    im = np.hstack((im1, im2))
+    plt.figure()
+    plt.imshow(im)
+    plt.hold(True)
+    outliers = np.delete(np.arange(pos1.shape[0]), inliers)
+    x, y = np.hstack((pos1[:,0], pos2[:,0]+im1.shape[1])), np.hstack((pos1[:,1], pos2[:,1]))
+    plt.scatter(x,y, c='r')
+    lines.Line2D(x[inliers], y[inliers], color='y')
+    lines.Line2D(x[outliers], y[outliers], color='b')
+    plt.axes('off')
+
