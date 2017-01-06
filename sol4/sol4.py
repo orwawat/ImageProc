@@ -87,15 +87,38 @@ def sample_descriptor(im, pos, desc_rad):
                 The per−descriptor dimensions KxK are related to the desc rad argument as follows K = 1+2∗desc rad.
     """
     k = desc_rad * 2 + 1
-    pos_in_l3 = map_coord_2_level(pos)
+    pos_in_l3 = map_coord_2_level(pos) # todo - make sure didn't come this way
     coords = get_windows_coords(pos_in_l3, desc_rad).transpose()
-    # Pretty sure the bug is in the reshape TODO
-    desc = map_coordinates(im, coords).reshape((k**2, -1)).transpose()
+    # # Pretty sure the bug is in the reshape TODO
+    # plt.figure()
+    # plt.imshow(im, cmap=plt.cm.gray)
+    # plt.scatter(pos_in_l3[:, 0], pos_in_l3[:, 1])
+    #
+    # plt.figure()
+    # plt.imshow(im, cmap=plt.cm.gray)
+    # plt.scatter(coords[0, :], coords[1, :])
 
-    # normalize dsec
+    desc = map_coordinates(im, coords).reshape((-1, k**2))
+
+    ignores = []
+    # normalize dsec - need to ignore wrong features (all from a smooth and constant area)
     desc = desc - np.mean(desc, axis=1)[:, np.newaxis]
-    desc = desc / np.linalg.norm(desc, axis=1)[:, np.newaxis]
-    return desc.reshape((k,k,-1)).astype(np.float32)
+    # if np.count_nonzero(desc) == 0:  # bad feature - ignore:
+    norms = np.linalg.norm(desc, axis=1)
+    ignores = np.where(norms == 0)[0]
+    if ignores.size > 0:  # todo - make sure that it is ok to delete them from here
+        norms = np.delete(norms, ignores)
+        pos = np.delete(pos, ignores, axis=0)
+        desc = np.delete(desc, ignores, axis=0)
+    desc = desc / norms[:, np.newaxis]
+
+    #ut
+    if not np.all(desc[5,:].reshape((k,k)) == desc.reshape((-1,k,k), order='C').transpose(1,2,0)[:,:,5]):
+        print('oh no!')
+        print(desc[0,:k**2])
+        print(desc.reshape((-1,k,k), order='C').transpose(1,2,0)[:,:,0])
+
+    return desc.reshape((-1,k,k), order='C').transpose(1,2,0).astype(np.float32)
 
 def find_features(pyr):
     """
@@ -106,6 +129,9 @@ def find_features(pyr):
         desc − A feature descriptor array with shape (K,K,N).
     """
     pos = spoc(pyr[0], M, N, SPOC_RADIUS)
+    # plt.figure()
+    # plt.imshow(pyr[0], cmap=plt.cm.gray)
+    # plt.scatter(pos[:,0], pos[:,1])
     desc = sample_descriptor(pyr[2], pos, DESC_RADIUS)
     return pos, desc
 
@@ -126,9 +152,12 @@ def match_features(desc1, desc2, min_score):
         match ind1 − Array with shape (M,) and dtype int of matching indices in desc1.
         match ind2 − Array with shape (M,) and dtype int of matching indices in desc2.
     """
-    d1 = desc1.reshape((desc1.shape[2], -1))
-    d2 = desc2.reshape((desc2.shape[2], -1)).transpose()
+    d1 = desc1.transpose((2,0,1)).reshape((desc1.shape[2], -1))
+    d2 = desc2.transpose((2,0,1)).reshape((desc2.shape[2], -1)).transpose()
     scores = np.matmul(d1, d2)
+    # plt.figure()
+    # plt.imshow(scores)
+    # plt.show(block=True)
     sec_larg_cols = get_sec_largest(scores)[np.newaxis,:]
     sec_larg_rows = get_sec_largest(scores, 1)[:,np.newaxis]
     first_prop = scores >= sec_larg_cols
