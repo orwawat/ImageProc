@@ -26,7 +26,7 @@ def derive_img(im, axis=0):
     """
     if axis != 0:
         return derive_img(im.transpose()).transpose()
-    return convolve2d(im, DERIVE_KER, mode='same')
+    return convolve2d(im, DERIVE_KER, mode='same', boundary='fill')
 
 
 def get_blured_mat_mul(im1, im2):
@@ -51,6 +51,10 @@ def harris_corner_detector(im):
     trace_M = Ix2+Iy2
     det_M = np.multiply(Ix2,Iy2) - np.power(IxIy, 2)
     R = det_M - K*np.power(trace_M,2)
+
+    # TODO - this threshold is not supposed to be here!
+    # R[R<1E-7] = 0
+
     return np.fliplr(np.array(np.where(nms(R))).transpose())
 
 
@@ -90,13 +94,13 @@ def sample_descriptor(im, pos, desc_rad):
     pos_in_l3 = map_coord_2_level(pos) # todo - make sure didn't come this way
     coords = get_windows_coords(pos_in_l3, desc_rad).transpose()
     # # Pretty sure the bug is in the reshape TODO
-    # plt.figure()
-    # plt.imshow(im, cmap=plt.cm.gray)
-    # plt.scatter(pos_in_l3[:, 0], pos_in_l3[:, 1])
-    #
-    # plt.figure()
-    # plt.imshow(im, cmap=plt.cm.gray)
-    # plt.scatter(coords[0, :], coords[1, :])
+    plt.figure()
+    plt.imshow(im, cmap=plt.cm.gray)
+    plt.scatter(pos_in_l3[:, 0], pos_in_l3[:, 1])
+
+    plt.figure()
+    plt.imshow(im, cmap=plt.cm.gray)
+    plt.scatter(coords[0, :], coords[1, :])
 
     desc = map_coordinates(im, coords).reshape((-1, k**2))
 
@@ -118,7 +122,8 @@ def sample_descriptor(im, pos, desc_rad):
         print(desc[0,:k**2])
         print(desc.reshape((-1,k,k), order='C').transpose(1,2,0)[:,:,0])
 
-    return desc.reshape((-1,k,k), order='C').transpose(1,2,0).astype(np.float32)
+    # todo - we are not supposed to return pos - can't return it which means can't delete from it here
+    return desc.reshape((-1,k,k), order='C').transpose(1,2,0).astype(np.float32), pos
 
 def find_features(pyr):
     """
@@ -132,7 +137,7 @@ def find_features(pyr):
     # plt.figure()
     # plt.imshow(pyr[0], cmap=plt.cm.gray)
     # plt.scatter(pos[:,0], pos[:,1])
-    desc = sample_descriptor(pyr[2], pos, DESC_RADIUS)
+    desc, pos = sample_descriptor(pyr[2], pos, DESC_RADIUS)
     return pos, desc
 
 # TODO - in the next two functions need to make sure the axes and indexing are correct
@@ -198,7 +203,7 @@ def ransac_homography(pos1, pos2, num_iters, inlier_tol):
         rnd_ind = np.random.choice(N, 4)
         H = lsh(pos1[rnd_ind,:], pos2[rnd_ind, :])
         if H is None: continue
-        sqdiff = np.linalg.norm(apply_homography(pos1, H) - pos2, axis=1)
+        sqdiff = np.power(np.linalg.norm(apply_homography(pos1, H) - pos2, axis=1),2)
         inlierstemp = np.where(sqdiff < inlier_tol)[0]
         if inlierstemp.size > inliers.size:
             inliers = inlierstemp

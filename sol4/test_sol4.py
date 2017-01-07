@@ -40,7 +40,7 @@ def test_matches():
     plt.imshow(im2, cmap=plt.cm.gray)
     plt.scatter(pos2[:, 0], pos2[:, 1])
 
-    ind1, ind2 = sol4.match_features(desc1, desc2, 0.1)
+    ind1, ind2 = sol4.match_features(desc1, desc2, 0.5)
     mpos1, mpos2 = pos1[ind1], pos2[ind2]
 
     plt.subplot(2, 2, 3)
@@ -51,7 +51,7 @@ def test_matches():
     plt.scatter(mpos2[:, 0], mpos2[:, 1])
 
     plt.show()
-    H, inliers = sol4.ransac_homography(mpos1, mpos2, 15, 5)
+    H, inliers = sol4.ransac_homography(mpos1, mpos2, 150, 3)
     sol4.display_matches(im1, im2, mpos1, mpos2, inliers)
 
 def main():

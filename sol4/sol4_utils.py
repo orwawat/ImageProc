@@ -11,7 +11,7 @@ REP_GREY = 1
 REP_RGB = 2
 MIN_INTENSITY = 0
 MAX_INTENSITY = 255
-CONV_MODE = 'reflect'
+CONV_MODE = 'mirror'
 
 
 def read_image(filename, representation):
