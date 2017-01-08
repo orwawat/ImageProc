@@ -11,9 +11,9 @@ from numpy.matlib import repmat
 K = 0.04
 BLUR_KER_SIZE = 3
 DERIVE_KER = np.array([[1, 0, -1]], dtype=np.float32)
-M = 7
-N = 7
-SPOC_RADIUS = 15
+M = 5
+N = 5
+SPOC_RADIUS = 12
 DESC_RADIUS = 3
 
 
@@ -63,8 +63,8 @@ def map_coord_2_level(pos, li=0, lj=2):
 
 def get_windows_coords(pos, desc_rad, axis=0):
     if pos.ndim > 1:
-        coords_x = get_windows_coords(pos[:, 0], desc_rad)
-        coords_y = get_windows_coords(pos[:, 1], desc_rad, axis=1)
+        coords_x = get_windows_coords(pos[:, 0], desc_rad, axis=1)
+        coords_y = get_windows_coords(pos[:, 1], desc_rad, axis=0)
         return np.hstack((coords_x, coords_y))
 
     k = desc_rad * 2 + 1
@@ -91,16 +91,16 @@ def sample_descriptor(im, pos, desc_rad):
                 The per−descriptor dimensions KxK are related to the desc rad argument as follows K = 1+2∗desc rad.
     """
     k = desc_rad * 2 + 1
-    pos_in_l3 = map_coord_2_level(pos) # todo - make sure didn't come this way
-    coords = get_windows_coords(pos_in_l3, desc_rad).transpose()
+
+    coords = get_windows_coords(pos, desc_rad).transpose()
     # # Pretty sure the bug is in the reshape TODO
     plt.figure()
-    plt.imshow(im, cmap=plt.cm.gray)
-    plt.scatter(pos_in_l3[:, 0], pos_in_l3[:, 1])
-
-    plt.figure()
-    plt.imshow(im, cmap=plt.cm.gray)
-    plt.scatter(coords[0, :], coords[1, :])
+    # plt.imshow(im, cmap=plt.cm.gray)
+    # plt.scatter(pos[:, 0], pos[:, 1])
+    #
+    # plt.figure()
+    # plt.imshow(im, cmap=plt.cm.gray)
+    # plt.scatter(coords[0, :], coords[1, :])
 
     desc = map_coordinates(im, coords).reshape((-1, k**2))
 
@@ -110,20 +110,12 @@ def sample_descriptor(im, pos, desc_rad):
     # if np.count_nonzero(desc) == 0:  # bad feature - ignore:
     norms = np.linalg.norm(desc, axis=1)
     ignores = np.where(norms == 0)[0]
-    if ignores.size > 0:  # todo - make sure that it is ok to delete them from here
-        norms = np.delete(norms, ignores)
-        pos = np.delete(pos, ignores, axis=0)
-        desc = np.delete(desc, ignores, axis=0)
+    norms[ignores] = 1
     desc = desc / norms[:, np.newaxis]
+    desc[ignores,:] = 0
+    print('ignores size was: ', ignores.size, ignores)
 
-    #ut
-    if not np.all(desc[5,:].reshape((k,k)) == desc.reshape((-1,k,k), order='C').transpose(1,2,0)[:,:,5]):
-        print('oh no!')
-        print(desc[0,:k**2])
-        print(desc.reshape((-1,k,k), order='C').transpose(1,2,0)[:,:,0])
-
-    # todo - we are not supposed to return pos - can't return it which means can't delete from it here
-    return desc.reshape((-1,k,k), order='C').transpose(1,2,0).astype(np.float32), pos
+    return desc.reshape((-1,k,k), order='C').transpose(1,2,0).astype(np.float32)
 
 def find_features(pyr):
     """
@@ -134,10 +126,15 @@ def find_features(pyr):
         desc − A feature descriptor array with shape (K,K,N).
     """
     pos = spoc(pyr[0], M, N, SPOC_RADIUS)
-    # plt.figure()
-    # plt.imshow(pyr[0], cmap=plt.cm.gray)
-    # plt.scatter(pos[:,0], pos[:,1])
-    desc, pos = sample_descriptor(pyr[2], pos, DESC_RADIUS)
+    pos_in_l3 = map_coord_2_level(pos)
+    desc = sample_descriptor(pyr[2], pos_in_l3, DESC_RADIUS)
+
+    # remove false descriptors (constant)
+    k = desc.shape[0]
+    mask = np.where(np.sum(np.sum((0 == desc).astype(np.uint8), axis=0), axis=0) == k**2)[0]
+    desc = np.delete(desc, mask, axis=2)
+    pos = np.delete(pos, mask, axis=1)
+
     return pos, desc
 
 # TODO - in the next two functions need to make sure the axes and indexing are correct
@@ -145,7 +142,13 @@ def get_sec_largest(mat, axis=0):
     if axis != 0:
         return get_sec_largest(mat.transpose()).transpose()
     m = mat.copy()
-    m[m.argmax(axis=0)] = m.min()
+    # plt.figure()
+    # plt.subplot(1,2,1)
+    # plt.imshow(m)
+    m[(m.argmax(axis=0)[np.newaxis,:], np.arange(m.shape[1])[np.newaxis,:])] = m.min()
+    # plt.subplot(1, 2, 2)
+    # plt.imshow(m)
+    # plt.show(block=True)
     return m.max(axis=0)
 
 def match_features(desc1, desc2, min_score):
@@ -159,6 +162,18 @@ def match_features(desc1, desc2, min_score):
     """
     d1 = desc1.transpose((2,0,1)).reshape((desc1.shape[2], -1))
     d2 = desc2.transpose((2,0,1)).reshape((desc2.shape[2], -1)).transpose()
+    # plt.figure();
+    # plt.subplot(2, 3, 1);
+    # plt.imshow(desc1[:, :, 0]);
+    # plt.subplot(2, 3, 2);
+    # plt.imshow(desc1[:, :, 1]);
+    # plt.subplot(2, 3, 4);
+    # plt.imshow(desc2[:, :, 0]);
+    # plt.subplot(2, 3, 5);
+    # plt.imshow(desc2[:, :, 1]);
+    # plt.subplot(2, 3, 6);
+    # plt.imshow(desc2[:, :, 2]);
+    # plt.show(block=True)
     scores = np.matmul(d1, d2)
     # plt.figure()
     # plt.imshow(scores)
