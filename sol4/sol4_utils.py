@@ -124,8 +124,15 @@ def build_gaussian_pyramid(im, max_levels, filter_size):
     """
     # When input is legal, levels should be equal to max_levels
     levels = min(max_levels, int(np.log2(im.shape[0] // 8)), int(np.log2(im.shape[1] // 8)))
-    if im.shape[0] % 2**(levels-1) != 0 or im.shape[1] % 2**(levels-1):
-        raise Exception("image shape doesn't meet prerequisites")
+    # if im.shape[0] % 2**(levels-1) != 0 or im.shape[1] % 2**(levels-1):
+    #     workim = np.zeros((im.shape[0]+2**(levels-1)-im.shape[0] % 2**(levels-1),
+    #                        im.shape[1] + 2 ** (levels - 1) - im.shape[1] % 2 ** (levels - 1)))
+    #     rightmargin = (workim.shape[0] - im.shape[0]) // 2
+    #     leftmargin = workim.shape[0] - im.shape[0] - rightmargin
+    #     upppermargin = (workim.shape[1] - im.shape[1]) // 2
+    #     downmargin = workim.shape[1] - im.shape[1] - upppermargin
+    #     workim[upppermargin:downmargin, rightmargin:leftmargin] = im[:,:]
+    #     im = workim
 
     pyr = [0] * levels
     filter_vec = get_filter_kernel(filter_size)
