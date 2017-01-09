@@ -85,7 +85,7 @@ def sample_descriptor(im, pos, desc_rad):
     """
     k = desc_rad * 2 + 1
     coords = get_windows_coords(pos, desc_rad)
-    desc = map_coordinates(im, coords).reshape((-1, k**2))
+    desc = map_coordinates(im, coords, order=1).reshape((-1, k**2))
 
     # normalize dsec - need to ignore wrong features (all from a smooth and constant area)
     desc = desc - np.mean(desc, axis=1)[:, np.newaxis]
@@ -107,7 +107,8 @@ def find_features(pyr):
         desc − A feature descriptor array with shape (K,K,N).
     """
     pos = spoc(pyr[0], M, N, SPOC_RADIUS)
-    pos_in_l3 = map_coord_2_level(pos)
+    pos_flipped = np.fliplr(pos)
+    pos_in_l3 = map_coord_2_level(pos_flipped)
     desc = sample_descriptor(pyr[2], pos_in_l3, DESC_RADIUS)
 
     # remove false descriptors (constant)

@@ -141,7 +141,7 @@ def main():
     # plt.show(block=True)
     print("Testing sol4. starting")
     try:
-        for test in [test_desc,test_apply_hom, test_matches]:
+        for test in [test_matches]:
             test()
     except Exception as e:
         print("Tests failed. error: {0}".format(e))
