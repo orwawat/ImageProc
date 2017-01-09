@@ -227,12 +227,73 @@ def accumulate_homographies(H_successive, m):
     :return: H2m − A list of M 3x3 homography matrices, where H2m[i] transforms points from coordinate system i
                     to coordinate system m
     """
-    H2m = np.zeros(H_successive.shape)
-    H2m[:,:,m] = np.eye(3)
+    H2m = [np.zeros((3,3))]*len(H_successive)
+    H2m[m] = np.eye(3)
     for i in range(m-1,-1,-1):
-        H2m[:, :, m] = np.matmul(H_successive[:,:,i], H2m[:, :, i+1])
-        H2m[:, :, m] /= H2m[2, 2, m]
+        H2m[m] = np.matmul(H_successive[i], H2m[i+1])
+        H2m[m] /= H2m[m][2, 2]
     for i in range(m +1, H_successive.shape[2]):
-        H2m[:, :, m] = np.matmul(np.linalg.inv(H_successive[:, :, i]), H2m[:, :, i-1])
-        H2m[:, :, m] /= H2m[2, 2, m]
+        H2m[m] = np.matmul(np.linalg.inv(H_successive[i]), H2m[i-1])
+        H2m[m] /= H2m[m][2, 2]
     return H2m
+
+
+def extract_corners_and_center(im):
+    return np.array([[0,0], [im.shape[1]-1,0], [im.shape[1]-1,im.shape[0]-1], [0,im.shape[0]-1],
+                     [(im.shape[1]-1)//2,(im.shape[0]-1)//2]])
+
+
+def get_pan_size_and_borders(ims, Hs):
+    """
+    :param ims: A list of grayscale images. (Python list)
+    :param Hs: A list of 3x3 homography matrices. Hs[i] is a homography that transforms points from the
+                coordinate system of ims [i] to the coordinate system of the panorama. (Python list)
+    :return: sz − shape as a tuple (rows,cols) of the final panorama image
+    """
+    minx, maxx, miny, maxy = 0,0,0,0
+    borders = [0] * (len(ims)+1)
+    last_center_x = None
+    for i in range(len(ims)):
+        warped_corners = apply_homography(extract_corners_and_center(ims[i]), Hs[i])
+        minx = min(minx, warped_corners[:,0].min())
+        maxx = min(minx, warped_corners[:,0].max())
+        miny = min(minx, warped_corners[:,1].min())
+        maxy = min(minx, warped_corners[:,1].max())
+        if last_center_x is not None:
+            borders[i] = (last_center_x + warped_corners[-1,0]) // 2
+        last_center_x = warped_corners[-1,0]
+    borders[-1] = maxx-minx+1
+    return (maxy-miny+1, maxx-minx+1), borders
+
+
+def back_warp(im, H, sz):
+    res_im = np.meshgrid(np.arange(sz[0], np.arange(sz[1])))
+    warped_im_coords = apply_homography(res_im, np.linalg.inv(H))
+    return map_coordinates(im, warped_im_coords)
+
+
+def merge_panorama(panorama, temp_panorama, mask):
+    return pyramid_blending(panorama, temp_panorama, mask, 3, 5, 5)
+
+
+def render_panorama(ims, Hs):
+    """
+    :param ims: A list of grayscale images. (Python list)
+    :param Hs: A list of 3x3 homography matrices. Hs[i] is a homography that transforms points from the
+                coordinate system of ims [i] to the coordinate system of the panorama. (Python list)
+    :return: panorama − A grayscale panorama image composed of vertical strips, backwarped using homographies
+                    from Hs, one from every image in ims.
+    """
+    sz, borders = get_pan_size_and_borders(ims, Hs)
+    panorama = np.zeros(sz)
+    temp_panorama = np.zeros(sz)
+    mask = np.zeros(sz, dtype=bool)
+
+    for i in range(len(ims)):
+        temp_panorama[:] = 0
+        mask = True
+        mask[:, borders[i]:borders[i + 1]] = False
+        temp_panorama[:, borders[i]:borders[i + 1]] = back_warp(ims[i], Hs[i], (sz[0], borders[i+1]-borders[i]))
+        panorama = merge_panorama(panorama, temp_panorama, mask)
+
+    return panorama
