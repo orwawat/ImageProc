@@ -85,7 +85,7 @@ def sample_descriptor(im, pos, desc_rad):
     """
     k = desc_rad * 2 + 1
     coords = get_windows_coords(pos, desc_rad)
-    desc = map_coordinates(im, coords, order=1).reshape((-1, k**2))
+    desc = map_coordinates(im, coords, order=1, prefilter=False).reshape((-1, k**2))
 
     # normalize dsec - need to ignore wrong features (all from a smooth and constant area)
     desc = desc - np.mean(desc, axis=1)[:, np.newaxis]
@@ -217,3 +217,22 @@ def display_matches(im1, im2, pos1, pos2, inliers):
 
     plt.show()
 
+
+
+def accumulate_homographies(H_successive, m):
+    """
+    :param H_successive: A list of M−1 3x3 homography matrices where H successive[i] is a homography that
+            transforms points from coordinate system i to coordinate system i+1.
+    :param m: Index of the coordinate system we would like to accumulate the given homographies towards.
+    :return: H2m − A list of M 3x3 homography matrices, where H2m[i] transforms points from coordinate system i
+                    to coordinate system m
+    """
+    H2m = np.zeros(H_successive.shape)
+    H2m[:,:,m] = np.eye(3)
+    for i in range(m-1,-1,-1):
+        H2m[:, :, m] = np.matmul(H_successive[:,:,i], H2m[:, :, i+1])
+        H2m[:, :, m] /= H2m[2, 2, m]
+    for i in range(m +1, H_successive.shape[2]):
+        H2m[:, :, m] = np.matmul(np.linalg.inv(H_successive[:, :, i]), H2m[:, :, i-1])
+        H2m[:, :, m] /= H2m[2, 2, m]
+    return H2m
