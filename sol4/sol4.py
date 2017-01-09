@@ -1,7 +1,7 @@
 from sol4_utils import *
 from sol4_add import non_maximum_suppression as nms, spread_out_corners as spoc, least_squares_homography as lsh
 import numpy as np
-from scipy.signal import convolve2d
+from scipy.ndimage.filters import convolve
 from scipy.ndimage import map_coordinates
 import matplotlib.pyplot as plt
 from numpy.matlib import repmat
@@ -11,8 +11,8 @@ from numpy.matlib import repmat
 K = 0.04
 BLUR_KER_SIZE = 3
 DERIVE_KER = np.array([[1, 0, -1]], dtype=np.float32)
-M = 5
-N = 5
+M = 7
+N = 7
 SPOC_RADIUS = 12
 DESC_RADIUS = 3
 
@@ -26,7 +26,7 @@ def derive_img(im, axis=0):
     """
     if axis != 0:
         return derive_img(im.transpose()).transpose()
-    return convolve2d(im, DERIVE_KER, mode='same', boundary='fill')
+    return convolve(im, DERIVE_KER, mode='reflect')
 
 
 def get_blured_mat_mul(im1, im2):
@@ -52,9 +52,6 @@ def harris_corner_detector(im):
     det_M = np.multiply(Ix2,Iy2) - np.power(IxIy, 2)
     R = det_M - K*np.power(trace_M,2)
 
-    # TODO - this threshold is not supposed to be here!
-    # R[R<1E-7] = 0
-
     return np.fliplr(np.array(np.where(nms(R))).transpose())
 
 
@@ -65,7 +62,7 @@ def get_windows_coords(pos, desc_rad, axis=0):
     if pos.ndim > 1:
         coords_x = get_windows_coords(pos[:, 0], desc_rad, axis=1)
         coords_y = get_windows_coords(pos[:, 1], desc_rad, axis=0)
-        return np.hstack((coords_x, coords_y))
+        return np.hstack((coords_x, coords_y)).transpose()
 
     k = desc_rad * 2 + 1
     coords = repmat(pos[:, np.newaxis], 1, k**2)
@@ -75,11 +72,7 @@ def get_windows_coords(pos, desc_rad, axis=0):
         inddiff = repmat(np.hstack([[i]*k for i in range(-desc_rad,desc_rad+1)]), pos.size, 1)
     coords += inddiff
     return coords.reshape((1,-1)).transpose()
-    # coords = np.zeros((pos.shape[0]*(k**2), 2))
-    # coords[::(k+1)*desc_rad,:] = pos
-    # coords[k//2,k//2,:] = 0
-    # return coords
-# TODO - not done!
+
 
 def sample_descriptor(im, pos, desc_rad):
     """
@@ -91,20 +84,9 @@ def sample_descriptor(im, pos, desc_rad):
                 The per−descriptor dimensions KxK are related to the desc rad argument as follows K = 1+2∗desc rad.
     """
     k = desc_rad * 2 + 1
-
-    coords = get_windows_coords(pos, desc_rad).transpose()
-    # # Pretty sure the bug is in the reshape TODO
-    plt.figure()
-    # plt.imshow(im, cmap=plt.cm.gray)
-    # plt.scatter(pos[:, 0], pos[:, 1])
-    #
-    # plt.figure()
-    # plt.imshow(im, cmap=plt.cm.gray)
-    # plt.scatter(coords[0, :], coords[1, :])
-
+    coords = get_windows_coords(pos, desc_rad)
     desc = map_coordinates(im, coords).reshape((-1, k**2))
 
-    ignores = []
     # normalize dsec - need to ignore wrong features (all from a smooth and constant area)
     desc = desc - np.mean(desc, axis=1)[:, np.newaxis]
     # if np.count_nonzero(desc) == 0:  # bad feature - ignore:
@@ -113,7 +95,6 @@ def sample_descriptor(im, pos, desc_rad):
     norms[ignores] = 1
     desc = desc / norms[:, np.newaxis]
     desc[ignores,:] = 0
-    print('ignores size was: ', ignores.size, ignores)
 
     return desc.reshape((-1,k,k), order='C').transpose(1,2,0).astype(np.float32)
 
@@ -133,22 +114,16 @@ def find_features(pyr):
     k = desc.shape[0]
     mask = np.where(np.sum(np.sum((0 == desc).astype(np.uint8), axis=0), axis=0) == k**2)[0]
     desc = np.delete(desc, mask, axis=2)
-    pos = np.delete(pos, mask, axis=1)
+    pos = np.delete(pos, mask, axis=0)
 
     return pos, desc
 
-# TODO - in the next two functions need to make sure the axes and indexing are correct
+
 def get_sec_largest(mat, axis=0):
     if axis != 0:
         return get_sec_largest(mat.transpose()).transpose()
     m = mat.copy()
-    # plt.figure()
-    # plt.subplot(1,2,1)
-    # plt.imshow(m)
     m[(m.argmax(axis=0)[np.newaxis,:], np.arange(m.shape[1])[np.newaxis,:])] = m.min()
-    # plt.subplot(1, 2, 2)
-    # plt.imshow(m)
-    # plt.show(block=True)
     return m.max(axis=0)
 
 def match_features(desc1, desc2, min_score):
@@ -162,22 +137,9 @@ def match_features(desc1, desc2, min_score):
     """
     d1 = desc1.transpose((2,0,1)).reshape((desc1.shape[2], -1))
     d2 = desc2.transpose((2,0,1)).reshape((desc2.shape[2], -1)).transpose()
-    # plt.figure();
-    # plt.subplot(2, 3, 1);
-    # plt.imshow(desc1[:, :, 0]);
-    # plt.subplot(2, 3, 2);
-    # plt.imshow(desc1[:, :, 1]);
-    # plt.subplot(2, 3, 4);
-    # plt.imshow(desc2[:, :, 0]);
-    # plt.subplot(2, 3, 5);
-    # plt.imshow(desc2[:, :, 1]);
-    # plt.subplot(2, 3, 6);
-    # plt.imshow(desc2[:, :, 2]);
-    # plt.show(block=True)
+
     scores = np.matmul(d1, d2)
-    # plt.figure()
-    # plt.imshow(scores)
-    # plt.show(block=True)
+
     sec_larg_cols = get_sec_largest(scores)[np.newaxis,:]
     sec_larg_rows = get_sec_largest(scores, 1)[:,np.newaxis]
     first_prop = scores >= sec_larg_cols
@@ -222,7 +184,7 @@ def ransac_homography(pos1, pos2, num_iters, inlier_tol):
         inlierstemp = np.where(sqdiff < inlier_tol)[0]
         if inlierstemp.size > inliers.size:
             inliers = inlierstemp
-    return lsh(pos1[inliers], pos2[inliers]), inliers
+    return lsh(pos1[inliers,:], pos2[inliers,:]), inliers
 
 
 def display_matches(im1, im2, pos1, pos2, inliers):
@@ -252,6 +214,5 @@ def display_matches(im1, im2, pos1, pos2, inliers):
              np.vstack((y1[inliers][np.newaxis, :], y2[inliers][np.newaxis, :])), c='y', lw=.4,
              ms=0)
 
-    #plt.axes('off')
-    plt.show(block=True)
+    plt.show()
 

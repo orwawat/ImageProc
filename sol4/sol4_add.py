@@ -5,6 +5,17 @@ from scipy.ndimage import label, center_of_mass
 import numpy as np
 
 def least_squares_homography(points1, points2):
+  """
+  Computes homography transforming points1 towards points2.
+  Uses least squares method
+  input:
+    points1: array with shape (N,2). Holds coordinates of corresponding points from image 1.
+    points2: array with shape (N,2). Holds coordinates of corresponding points from image 2.
+    points1[i,:] corresponds to poins2[i,:]
+  Returns:
+    A 3X3 array with the computed homography.
+    In case of instable solutions returns None.
+  """
   p1, p2 = points1, points2
   o0, o1 = np.zeros((p1.shape[0],1)), np.ones((p1.shape[0],1))
 
@@ -22,6 +33,13 @@ def least_squares_homography(points1, points2):
   return H.reshape((3,3)).T
 
 def non_maximum_suppression(image):
+  """
+  Finds local maximas of an image.
+  input:
+    image: 2D image
+  Returns:
+    A boolean array with the same shape as image, where True indicates local maximum.
+  """
   # Find local maximas.
   neighborhood = generate_binary_structure(2,2)
   local_max = maximum_filter(image, footprint=neighborhood)==image
@@ -37,6 +55,16 @@ def non_maximum_suppression(image):
   return ret
 
 def spread_out_corners(im, m, n, radius):
+  """
+  Split the image im to m by n rectangles and use harris_corner_detector on each.
+  input:
+    im -- 2D array representing an image.
+    m -- vertical number of rectangles.
+    n -- horizontal number of rectangles.
+    radius -- Minimal distance of corner points from the borders of the image.
+   Returns:
+    An array with shape (N,2), where ret[i,:] are the [x,y] coordinates of the ith corner points.
+  """
   from sol4 import harris_corner_detector
   corners = [np.empty((0,2), dtype=np.int)]
   x_bound = np.linspace(0, im.shape[1], n+1, dtype=np.int)
