@@ -227,14 +227,14 @@ def accumulate_homographies(H_successive, m):
     :return: H2m − A list of M 3x3 homography matrices, where H2m[i] transforms points from coordinate system i
                     to coordinate system m
     """
-    H2m = [np.zeros((3,3))]*len(H_successive)
+    H2m = [np.zeros((3,3))]*(len(H_successive)+1)
     H2m[m] = np.eye(3)
     for i in range(m-1,-1,-1):
-        H2m[m] = np.matmul(H_successive[i], H2m[i+1])
-        H2m[m] /= H2m[m][2, 2]
-    for i in range(m +1, H_successive.shape[2]):
-        H2m[m] = np.matmul(np.linalg.inv(H_successive[i]), H2m[i-1])
-        H2m[m] /= H2m[m][2, 2]
+        H2m[i] = np.matmul(H2m[i+1], H_successive[i])
+        H2m[i] /= H2m[i][2, 2]
+    for i in range(m+1, len(H_successive)+1):
+        H2m[i] = np.matmul(H2m[i-1], np.linalg.inv(H_successive[i-1]))
+        H2m[i] /= H2m[i][2, 2]
     return H2m
 
 
@@ -256,24 +256,29 @@ def get_pan_size_and_borders(ims, Hs):
     for i in range(len(ims)):
         warped_corners = apply_homography(extract_corners_and_center(ims[i]), Hs[i])
         minx = min(minx, warped_corners[:,0].min())
-        maxx = min(minx, warped_corners[:,0].max())
-        miny = min(minx, warped_corners[:,1].min())
-        maxy = min(minx, warped_corners[:,1].max())
+        maxx = max(maxx, warped_corners[:,0].max())
+        miny = min(miny, warped_corners[:,1].min())
+        maxy = max(maxy, warped_corners[:,1].max())
         if last_center_x is not None:
-            borders[i] = (last_center_x + warped_corners[-1,0]) // 2
+            borders[i] = int((last_center_x + warped_corners[-1,0]) // 2)
         last_center_x = warped_corners[-1,0]
-    borders[-1] = maxx-minx+1
-    return (maxy-miny+1, maxx-minx+1), borders
+    borders = (np.asarray(borders) - minx).astype(np.int)
+    borders[0] = 0
+    borders[-1] = int(maxx-minx+1)
+    height, width = int(maxy-miny+1), int(maxx-minx+1)
+    x, y = np.meshgrid(np.linspace(minx, maxx, width), np.linspace(miny, maxy, height))
+    return (height, width), borders, x,y
 
 
-def back_warp(im, H, sz):
-    res_im = np.meshgrid(np.arange(sz[0], np.arange(sz[1])))
-    warped_im_coords = apply_homography(res_im, np.linalg.inv(H))
-    return map_coordinates(im, warped_im_coords)
+def back_warp(im, H, x, y):
+    warped_im_coords = np.hstack((x.reshape((-1, 1)), y.reshape((-1, 1))))
+    warped_im_coords = apply_homography(warped_im_coords, np.linalg.inv(H))
+    warped_im = map_coordinates(im, np.flipud(warped_im_coords.T), order=1, prefilter=False)
+    return warped_im.reshape(x.shape)
 
 
-def merge_panorama(panorama, temp_panorama, mask):
-    return pyramid_blending(panorama, temp_panorama, mask, 3, 5, 5)
+def merge_panorama(panorama, temp_panorama, mask, levels):
+    return pyramid_blending(panorama, temp_panorama, mask, levels, 5, 5)
 
 
 def render_panorama(ims, Hs):
@@ -284,16 +289,22 @@ def render_panorama(ims, Hs):
     :return: panorama − A grayscale panorama image composed of vertical strips, backwarped using homographies
                     from Hs, one from every image in ims.
     """
-    sz, borders = get_pan_size_and_borders(ims, Hs)
+    levels = 5
+    pow2lv = 2**(levels-1)
+    sz, borders, x,y = get_pan_size_and_borders(ims, Hs)
+    origsz = sz
+    sz = (sz[0] if sz[0] % pow2lv == 0 else sz[0] + pow2lv - sz[0] % pow2lv,
+          sz[1] if sz[1] % pow2lv == 0 else sz[1] + pow2lv - sz[1] % pow2lv)
     panorama = np.zeros(sz)
     temp_panorama = np.zeros(sz)
     mask = np.zeros(sz, dtype=bool)
 
     for i in range(len(ims)):
         temp_panorama[:] = 0
-        mask = True
+        mask[:] = True
         mask[:, borders[i]:borders[i + 1]] = False
-        temp_panorama[:, borders[i]:borders[i + 1]] = back_warp(ims[i], Hs[i], (sz[0], borders[i+1]-borders[i]))
-        panorama = merge_panorama(panorama, temp_panorama, mask)
+        temp_panorama[:origsz[0], borders[i]:borders[i + 1]] = \
+            back_warp(ims[i], Hs[i], x[:,borders[i]:borders[i + 1]],y[:,borders[i]:borders[i + 1]])
+        panorama = merge_panorama(panorama, temp_panorama, mask, levels)
 
-    return panorama
+    return panorama[:origsz[0], :origsz[1]]
