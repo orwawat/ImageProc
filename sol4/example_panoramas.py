@@ -28,7 +28,7 @@ def generate_panorama(data_dir, file_prefix, num_images, figsize=(20,20)):
     points1, points2 = points1[ind1,:], points2[ind2,:]
 
     # Compute homography using RANSAC.
-    H12, inliers = sol4.ransac_homography(points1, points2, 1000, 6)
+    H12, inliers = sol4.ransac_homography(points1, points2, 10000, 6)
 
     # Display inlier and outlier matches.
     sol4.display_matches(ims[i], ims[i+1], points1 , points2, inliers=inliers)

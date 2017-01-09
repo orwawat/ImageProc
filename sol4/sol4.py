@@ -160,6 +160,7 @@ def apply_homography(pos1, H12):
     xyz1 = np.ones((3, pos1.shape[0]))
     xyz1[0:2,:] = pos1.transpose()
     xyz2 = np.matmul(H12, xyz1)
+    xyz2[2, np.where(xyz2[2,:]==0)] = 1E-10
     xy2 = xyz2[0:2,:] / xyz2[2,:]
     return xy2.transpose()
 
@@ -278,7 +279,7 @@ def back_warp(im, H, x, y):
 
 
 def merge_panorama(panorama, temp_panorama, mask, levels):
-    return pyramid_blending(panorama, temp_panorama, mask, levels, 5, 5)
+    return pyramid_blending(panorama, temp_panorama, mask, levels, 7, 7)
 
 
 def render_panorama(ims, Hs):
@@ -290,6 +291,7 @@ def render_panorama(ims, Hs):
                     from Hs, one from every image in ims.
     """
     levels = 5
+    stich_margin = 4
     pow2lv = 2**(levels-1)
     sz, borders, x,y = get_pan_size_and_borders(ims, Hs)
     origsz = sz
@@ -302,9 +304,10 @@ def render_panorama(ims, Hs):
     for i in range(len(ims)):
         temp_panorama[:] = 0
         mask[:] = True
-        mask[:, borders[i]:borders[i + 1]] = False
-        temp_panorama[:origsz[0], borders[i]:borders[i + 1]] = \
-            back_warp(ims[i], Hs[i], x[:,borders[i]:borders[i + 1]],y[:,borders[i]:borders[i + 1]])
+        bstart, bend = max(0, borders[i]-stich_margin), min(borders[-1], borders[i + 1]+stich_margin)
+        mask[:, bstart:bend] = False
+        temp_panorama[:origsz[0], bstart:bend] = \
+            back_warp(ims[i], Hs[i], x[:,bstart:bend], y[:,bstart:bend])
         panorama = merge_panorama(panorama, temp_panorama, mask, levels)
 
     return panorama[:origsz[0], :origsz[1]]
