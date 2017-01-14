@@ -279,7 +279,7 @@ def back_warp(im, H, x, y):
 
 
 def merge_panorama(panorama, temp_panorama, mask, levels):
-    return pyramid_blending(panorama, temp_panorama, mask, levels, 7, 7)
+    return pyramid_blending(panorama, temp_panorama, mask, levels, 5, 5)
 
 
 def render_panorama(ims, Hs):
@@ -290,8 +290,7 @@ def render_panorama(ims, Hs):
     :return: panorama − A grayscale panorama image composed of vertical strips, backwarped using homographies
                     from Hs, one from every image in ims.
     """
-    levels = 5
-    stich_margin = 4
+    levels = 6
     pow2lv = 2**(levels-1)
     sz, borders, x,y = get_pan_size_and_borders(ims, Hs)
     origsz = sz
@@ -303,11 +302,41 @@ def render_panorama(ims, Hs):
 
     for i in range(len(ims)):
         temp_panorama[:] = 0
-        mask[:] = True
-        bstart, bend = max(0, borders[i]-stich_margin), min(borders[-1], borders[i + 1]+stich_margin)
-        mask[:, bstart:bend] = False
-        temp_panorama[:origsz[0], bstart:bend] = \
-            back_warp(ims[i], Hs[i], x[:,bstart:bend], y[:,bstart:bend])
-        panorama = merge_panorama(panorama, temp_panorama, mask, levels)
+        mask[:] = False
+        bstart, bend = borders[i], borders[i + 1]
+        mask[:, :bstart] = True
+        if i == 0:
+            panorama[:origsz[0], :origsz[1]] = back_warp(ims[i], Hs[i], x, y)
+        else:
+            temp_panorama[:origsz[0], :origsz[1]] = back_warp(ims[i], Hs[i], x, y)
+            find_best_slice(panorama[:, borders[i-1]:borders[i+1]], temp_panorama[:, borders[i-1]:borders[i+1]])
+            panorama = merge_panorama(panorama, temp_panorama, mask, levels)
 
     return panorama[:origsz[0], :origsz[1]]
+
+def max_y(im):
+    return np.where(np.sum(im, axis=1) != 0)[0][-1]
+
+def find_best_slice(im1, im2):
+    maxy = max_y(im1)
+    from scipy.ndimage.filters import minimum_filter
+    E = np.power(im1-im2, 2)
+    for r in range(1,maxy):
+        rel_min = minimum_filter(E[r-1, :], size=1)
+        E[r, :] += rel_min[1]
+    path = np.zeros(maxy)
+    path[-1] = np.argmin(E[maxy, :])
+    for r in range(maxy-2, -1, -1):
+        if path[r+1] == 0:
+            s, i = 0, 0
+        else:
+            s, i = int(path[r+1]-1), 1
+        e = int(min(path[r+1]+2, E.shape[1]+1))
+        path[r] = path[r+1] + np.argmin(E[r, s:e]) - i
+
+    res = np.zeros(im1.shape)
+    for i in range(path.size):
+        E[i,path[i]]=1
+        res[i,:path[i]+1]=1
+    res = np.multiply(res, im1) + np.multiply(1-res, im2)
+    return path
