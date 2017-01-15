@@ -26,10 +26,15 @@ def derive_img(im, axis=0):
     """
     if axis != 0:
         return derive_img(im.transpose()).transpose()
-    return convolve(im, DERIVE_KER, mode='reflect')
+    return convolve(im, DERIVE_KER, mode='reflect').astype(np.float32)
 
 
 def get_blured_mat_mul(im1, im2):
+    """
+    Multiplies pointwise the two matrices, blur them with kernel of size 3 and return the result
+    :param im1, im2: two np arrays of the same shape
+    :return: blured version of im1*im2
+    """
     return blur_spatial(np.multiply(im1, im2), BLUR_KER_SIZE)
 
 # in my code i should use spread_out_corners (play with n,m but start with n=m=7)
@@ -39,26 +44,38 @@ def harris_corner_detector(im):
     :param im: − grayscale image to find key points inside
     :return: pos - An array with shape (N,2) of [x,y] key points locations in im.
     """
-    # Get Ix and Iy with [1,0,-1]
-    # blur Ix2, Iy2 and IxIy with blur_spatial kernel 3
-    # For each pixel we have M: [[Ix2 IxIy],[IyIx, Iy2]]
-    # find R = det(M) − k(trace(M))^2 with k=0.04
-    # find response image with R for each pixel
-    # use non_maximum_supression to get a binary image with the local maximum points
-    # Return the xy coordinates of the corners.
     Ix, Iy, = derive_img(im, 0), derive_img(im, 1)
     Ix2, Iy2, IxIy = get_blured_mat_mul(Ix, Ix), get_blured_mat_mul(Iy, Iy), get_blured_mat_mul(Ix, Iy)
     trace_M = Ix2+Iy2
     det_M = np.multiply(Ix2,Iy2) - np.power(IxIy, 2)
     R = det_M - K*np.power(trace_M,2)
 
-    return np.fliplr(np.array(np.where(nms(R))).transpose())
+    return np.fliplr(np.array(np.where(nms(R))).transpose()).astype(np.float32)
 
 
 def map_coord_2_level(pos, li=0, lj=2):
+    """
+    Transforms the list of points in level li to their location in level lj in the gaussian pyramid
+    :param pos: no array of points [x,y]
+    :param li: level of the points
+    :param lj: wanted level for the points
+    :return: The mapped points in the lj level of the pyramid
+    """
     return pos * 2**(li-lj)
 
+
 def get_windows_coords(pos, desc_rad, axis=0):
+    """
+    for a given set of points (array of shpae (N,2)), creates a window of desc_rad around each
+    (range of [x-rad,x+rad]X[y-rad,y+rad]), finally, reshape them to be new list of size (N*(2*rad+1)^2, 2) of points
+    s.t every consecutive (2*rad+1)^2 points are a window for the corresponding original point
+    :param pos: A list of points
+    :param desc_rad: the radius around each point for the window
+    :param axis: if pos is (n,1) (only x or y axis), uses the axis argument to generate the needed range around the
+        points
+    :return: list of size (N*(2*rad+1)^2, 2) of points
+                s.t every consecutive (2*rad+1)^2 points are a window for the corresponding original point
+    """
     if pos.ndim > 1:
         coords_x = get_windows_coords(pos[:, 0], desc_rad, axis=1)
         coords_y = get_windows_coords(pos[:, 1], desc_rad, axis=0)
@@ -66,7 +83,7 @@ def get_windows_coords(pos, desc_rad, axis=0):
 
     k = desc_rad * 2 + 1
     coords = repmat(pos[:, np.newaxis], 1, k**2)
-    if axis==0:
+    if axis == 0:
         inddiff = repmat(np.arange(-desc_rad, desc_rad+1), pos.size, k)
     else:
         inddiff = repmat(np.hstack([[i]*k for i in range(-desc_rad,desc_rad+1)]), pos.size, 1)
@@ -89,7 +106,7 @@ def sample_descriptor(im, pos, desc_rad):
 
     # normalize dsec - need to ignore wrong features (all from a smooth and constant area)
     desc = desc - np.mean(desc, axis=1)[:, np.newaxis]
-    # if np.count_nonzero(desc) == 0:  # bad feature - ignore:
+    # if np.count_nonzero(desc) == 0 it is a bad feature - ignore:
     norms = np.linalg.norm(desc, axis=1)
     ignores = np.where(norms == 0)[0]
     norms[ignores] = 1
@@ -97,6 +114,7 @@ def sample_descriptor(im, pos, desc_rad):
     desc[ignores,:] = 0
 
     return desc.reshape((-1,k,k), order='C').transpose(1,2,0).astype(np.float32)
+
 
 def find_features(pyr):
     """
@@ -121,11 +139,18 @@ def find_features(pyr):
 
 
 def get_sec_largest(mat, axis=0):
+    """
+    A util function which returns the second largest element in each row/col (depending on the axis)
+    :param mat: np array
+    :param axis: along which axis to find the sec largest elemnt (same as in np.max())
+    :return: same as np.max, only the second largest
+    """
     if axis != 0:
         return get_sec_largest(mat.transpose()).transpose()
     m = mat.copy()
     m[(m.argmax(axis=0)[np.newaxis,:], np.arange(m.shape[1])[np.newaxis,:])] = m.min()
     return m.max(axis=0)
+
 
 def match_features(desc1, desc2, min_score):
     """
@@ -216,7 +241,7 @@ def display_matches(im1, im2, pos1, pos2, inliers):
              np.vstack((y1[inliers][np.newaxis, :], y2[inliers][np.newaxis, :])), c='y', lw=.4,
              ms=0)
 
-    plt.show()
+    # plt.show() TODO - need or not?
 
 
 
@@ -240,6 +265,11 @@ def accumulate_homographies(H_successive, m):
 
 
 def extract_corners_and_center(im):
+    """
+    TODO
+    :param im:
+    :return:
+    """
     return np.array([[0,0], [im.shape[1]-1,0], [im.shape[1]-1,im.shape[0]-1], [0,im.shape[0]-1],
                      [(im.shape[1]-1)//2,(im.shape[0]-1)//2]])
 
@@ -272,6 +302,14 @@ def get_pan_size_and_borders(ims, Hs):
 
 
 def back_warp(im, H, x, y):
+    """
+    TODO
+    :param im:
+    :param H:
+    :param x:
+    :param y:
+    :return:
+    """
     warped_im_coords = np.hstack((x.reshape((-1, 1)), y.reshape((-1, 1))))
     warped_im_coords = apply_homography(warped_im_coords, np.linalg.inv(H))
     warped_im = map_coordinates(im, np.flipud(warped_im_coords.T), order=1, prefilter=False)
@@ -279,6 +317,14 @@ def back_warp(im, H, x, y):
 
 
 def merge_panorama(panorama, temp_panorama, mask, levels):
+    """
+    TODO
+    :param panorama:
+    :param temp_panorama:
+    :param mask:
+    :param levels:
+    :return:
+    """
     return pyramid_blending(panorama, temp_panorama, mask, levels, 5, 5)
 
 
@@ -315,16 +361,31 @@ def render_panorama(ims, Hs):
     return panorama[:origsz[0], :origsz[1]]
 
 def max_y(im):
+    """
+    TODO
+    :param im:
+    :return:
+    """
     return np.where(np.sum(im, axis=1) != 0)[0][-1]
 
 def find_best_slice(im1, im2):
+    """
+    TODO
+    take only the sub parts that include only the overlapping parts
+    where it equals 0 in the left image, take it from the right?
+    :param im1:
+    :param im2:
+    :return:
+    """
     maxy = max_y(im1)
     from scipy.ndimage.filters import minimum_filter
     E = np.power(im1-im2, 2)
+    plt.figure()
+    plt.imshow(E, cmap=plt.cm.gray)
     for r in range(1,maxy):
         rel_min = minimum_filter(E[r-1, :], size=1)
         E[r, :] += rel_min[1]
-    path = np.zeros(maxy)
+    path = np.zeros(maxy, dtype=np.int)
     path[-1] = np.argmin(E[maxy, :])
     for r in range(maxy-2, -1, -1):
         if path[r+1] == 0:
@@ -338,5 +399,11 @@ def find_best_slice(im1, im2):
     for i in range(path.size):
         E[i,path[i]]=1
         res[i,:path[i]+1]=1
+    plt.figure()
+    plt.imshow(res, cmap=plt.cm.gray)
     res = np.multiply(res, im1) + np.multiply(1-res, im2)
+    plt.figure()
+    plt.imshow(res, cmap=plt.cm.gray)
+    plt.show(block=True)
+
     return path
