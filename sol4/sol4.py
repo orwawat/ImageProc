@@ -279,26 +279,29 @@ def get_pan_size_and_borders(ims, Hs):
     :param ims: A list of grayscale images. (Python list)
     :param Hs: A list of 3x3 homography matrices. Hs[i] is a homography that transforms points from the
                 coordinate system of ims [i] to the coordinate system of the panorama. (Python list)
-    :return: sz − shape as a tuple (rows,cols) of the final panorama image
+    :return: sz − shape as a tuple (rows,cols) of the final panorama image, TODO
     """
-    minx, maxx, miny, maxy = 0,0,0,0
+
     borders = [0] * (len(ims)+1)
     last_center_x = None
+    warped_corners = np.zeros((5,2,len(ims)))
     for i in range(len(ims)):
-        warped_corners = apply_homography(extract_corners_and_center(ims[i]), Hs[i])
-        minx = min(minx, warped_corners[:,0].min())
-        maxx = max(maxx, warped_corners[:,0].max())
-        miny = min(miny, warped_corners[:,1].min())
-        maxy = max(maxy, warped_corners[:,1].max())
+        warped_corners[:,:,i] = apply_homography(extract_corners_and_center(ims[i]), Hs[i])
         if last_center_x is not None:
-            borders[i] = int((last_center_x + warped_corners[-1,0]) // 2)
-        last_center_x = warped_corners[-1,0]
+            borders[i] = int((last_center_x + warped_corners[-1, 0,i]) // 2)
+        last_center_x = warped_corners[-1, 0,i]
+
+    minx = warped_corners[:,0,:].min()
+    maxx = warped_corners[:,0,:].max()
+    miny = warped_corners[:,1,:].min()
+    maxy = warped_corners[:,1,:].max()
+
     borders = (np.asarray(borders) - minx).astype(np.int)
     borders[0] = 0
     borders[-1] = int(maxx-minx+1)
     height, width = int(maxy-miny+1), int(maxx-minx+1)
     x, y = np.meshgrid(np.linspace(minx, maxx, width), np.linspace(miny, maxy, height))
-    return (height, width), borders, x,y
+    return (height, width), borders, x,y,warped_corners
 
 
 def back_warp(im, H, x, y):
@@ -338,7 +341,7 @@ def render_panorama(ims, Hs):
     """
     levels = 6
     pow2lv = 2**(levels-1)
-    sz, borders, x,y = get_pan_size_and_borders(ims, Hs)
+    sz, borders, x,y ,warped_corners= get_pan_size_and_borders(ims, Hs)
     origsz = sz
     sz = (sz[0] if sz[0] % pow2lv == 0 else sz[0] + pow2lv - sz[0] % pow2lv,
           sz[1] if sz[1] % pow2lv == 0 else sz[1] + pow2lv - sz[1] % pow2lv)
@@ -355,18 +358,45 @@ def render_panorama(ims, Hs):
             panorama[:origsz[0], :origsz[1]] = back_warp(ims[i], Hs[i], x, y)
         else:
             temp_panorama[:origsz[0], :origsz[1]] = back_warp(ims[i], Hs[i], x, y)
-            find_best_slice(panorama[:, borders[i-1]:borders[i+1]], temp_panorama[:, borders[i-1]:borders[i+1]])
+            mask = generate_best_mask(warped_corners, panorama, temp_panorama, i, x[0,0], y[0,0])
             panorama = merge_panorama(panorama, temp_panorama, mask, levels)
 
+    plt.figure()
+    plt.imshow(panorama[:origsz[0], :origsz[1]], cmap=plt.cm.gray)
     return panorama[:origsz[0], :origsz[1]]
 
-def max_y(im):
+def max_y(im, where):
     """
     TODO
     :param im:
     :return:
     """
-    return np.where(np.sum(im, axis=1) != 0)[0][-1]
+    return np.where(np.sum(im, axis=1) != 0)[0][where]
+
+
+def generate_best_mask(warped_corners, curr_pan, added_pan, curr_im_idx, minx, miny):
+    startx = int(warped_corners[:, 0, curr_im_idx].min() - minx)
+    endx = int(warped_corners[:, 0, curr_im_idx-1].max() - minx)
+    starty = int(warped_corners[:, 1, curr_im_idx-1:curr_im_idx+1].min() - miny)
+    endy = int(warped_corners[:, 1, curr_im_idx-1:curr_im_idx+1].max() - miny)
+    # todo - add test here and after 0 correction that does not cross boundries
+    addedim = curr_pan[starty:endy+1, startx:endx+1] + added_pan[starty:endy+1, startx:endx+1]
+    first_not_all_throes = max_y(addedim, 0)
+    last_not_all_throes = max_y(addedim, -1)
+    starty += first_not_all_throes
+    if last_not_all_throes+1 != addedim.shape[0]:
+        endy += addedim.shape[0] - last_not_all_throes
+    path = find_best_slice(curr_pan[starty:endy+1, startx:endx+1], added_pan[starty:endy+1, startx:endx+1])
+
+    mask = np.zeros(curr_pan.shape, dtype=np.bool)
+    mask[:, :startx] = True
+    for i in range(path.size):
+        mask[i, :startx + path[i] + 1] = True
+    plt.figure(); plt.imshow(mask)
+    mask[np.logical_and(curr_pan == 0., added_pan != 0.)] = False
+    plt.figure(); plt.imshow(mask)
+    plt.show()
+    return mask
 
 def find_best_slice(im1, im2):
     """
@@ -377,17 +407,17 @@ def find_best_slice(im1, im2):
     :param im2:
     :return:
     """
-    maxy = max_y(im1)
+    height = im1.shape[0]-1
     from scipy.ndimage.filters import minimum_filter
     E = np.power(im1-im2, 2)
     plt.figure()
     plt.imshow(E, cmap=plt.cm.gray)
-    for r in range(1,maxy):
+    for r in range(1,height):
         rel_min = minimum_filter(E[r-1, :], size=1)
         E[r, :] += rel_min[1]
-    path = np.zeros(maxy, dtype=np.int)
-    path[-1] = np.argmin(E[maxy, :])
-    for r in range(maxy-2, -1, -1):
+    path = np.zeros(height, dtype=np.int)
+    path[-1] = np.argmin(E[height, :])
+    for r in range(height-2, -1, -1):
         if path[r+1] == 0:
             s, i = 0, 0
         else:
@@ -401,6 +431,8 @@ def find_best_slice(im1, im2):
         res[i,:path[i]+1]=1
     plt.figure()
     plt.imshow(res, cmap=plt.cm.gray)
+    plt.figure()
+    plt.imshow(E, cmap=plt.cm.gray)
     res = np.multiply(res, im1) + np.multiply(1-res, im2)
     plt.figure()
     plt.imshow(res, cmap=plt.cm.gray)
