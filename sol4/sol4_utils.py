@@ -12,15 +12,17 @@ REP_RGB = 2
 MIN_INTENSITY = 0
 MAX_INTENSITY = 255
 CONV_MODE = 'reflect'
-
+RGB2YIQ_MAT = np.array([0.299, 0.587, 0.114, 0.596, -0.275, -0.321, 0.212, -0.523, 0.311],
+                       dtype=np.float32).reshape(3, 3)
+YIQ2RGB_MAT = np.array([1, 0.956, 0.621, 1, -0.272, -0.647, 1, -1.106, 1.703], dtype=np.float32).reshape(3, 3)
 
 def read_image(filename, representation):
     """
-        Reads a given image file and converts it into a given representation
-            filename - string containing the image filename to read.
-            representation - representation code, either 1 or 2 defining if the output should be either a
-                            grayscale image (1) or an RGB image (2).
-            return im as np.float32 in range [0,1]
+    Reads a given image file and converts it into a given representation
+        filename - string containing the image filename to read.
+        representation - representation code, either 1 or 2 defining if the output should be either a
+                        grayscale image (1) or an RGB image (2).
+        return im as np.float32 in range [0,1]
     """
     im = imread(filename)
     if (representation == REP_GREY) & (im.ndim == 2):
@@ -31,6 +33,47 @@ def read_image(filename, representation):
         return im.astype(np.float32) / MAX_INTENSITY
     else:
         raise Exception('Unsupported representation: {0}'.format(representation))
+
+def convert_rep(im, transmat):
+    """
+    Helper function that takes in a 3d image, and returns a new 3d image of the same shape exactly,
+    where for every pixel NewIm[i,j,:]= transmat * Im[i,j,:]
+
+    transmat is a 3*3 tmatrix
+    """
+    impermuted = np.transpose(im, (2, 0, 1))  # change order of axes so that the main axis is the channels,
+    # than rows than columns
+    imreshaped = impermuted.reshape(3, -1)
+    imconverted = np.matmul(transmat, imreshaped)
+    return imconverted.reshape(impermuted.shape).transpose(1, 2, 0).astype(np.float32)
+
+
+
+def rgb2yiq(imRGB):
+    """
+    Transform an RGB image into the YIQ color space
+    input and output are float32 in [0,1]
+    return image in YIQ
+    """
+    return convert_rep(imRGB, RGB2YIQ_MAT)
+
+
+
+def yiq2rgb(imYIQ):
+    """
+    Transform an RGB image into the YIQ color space
+    input is float32 in [0,1], output is float32 but may not be clipped to range [0,1]
+    return image in RGB
+    """
+    return convert_rep(imYIQ, YIQ2RGB_MAT)  # may not be in [0,1] range!
+
+
+
+def clipped_yiq2rgb(imYIQ):
+    """
+    Helper function to transform yiq to rgb, but clips the result to range [0,1]
+    """
+    return np.clip(yiq2rgb(imYIQ), a_min=0, a_max=1.0)  # clipping to [0,1]
 
 
 # ------------------------------------------------------------------------------
@@ -216,5 +259,26 @@ def pyramid_blending(im1, im2, mask, max_levels, filter_size_im, filter_size_mas
         new_pyr.append(np.multiply(pyr1[i], pyr_mask[i]) + np.multiply(pyr2[i], (1 - pyr_mask[i])))
     im_blend = laplacian_to_image(new_pyr, filter1, [1] * (i + 1))
     return im_blend.clip(0, 1).astype(np.float32)
+
+
+def blend_rgb_image(im1, im2, mask, max_levels, filter_size_im, filter_size_mask):
+    """
+    Util function to blend to color images, channel by channel using the blend_image function.
+    :param im1: see blend_image
+    :param im2: see blend_image
+    :param mask:  see blend_image
+    :param max_levels:  see blend_image
+    :param filter_size_im:  see blend_image
+    :param filter_size_mask:  see blend_image
+    :return:  see blend_image
+    """
+    if im1.ndim != 3 or mask.dtype != np.bool or im1.shape[2] != 3:
+        raise Exception("Bad usage - image is not rgb or mask is not boolean")
+
+    im_blend = np.zeros(im1.shape)
+    for dim in range(im1.shape[2]):
+        im_blend[:, :, dim] = pyramid_blending(im1[:, :, dim], im2[:, :, dim], mask, max_levels,
+                                               filter_size_im, filter_size_mask)
+    return im_blend.astype(np.float32)
 
 # ------------------------------------------------------------------------------

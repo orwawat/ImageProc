@@ -328,7 +328,7 @@ def merge_panorama(panorama, temp_panorama, mask, levels):
     :param levels:
     :return:
     """
-    return pyramid_blending(panorama, temp_panorama, mask, levels, 5, 5)
+    return
 
 
 def render_panorama(ims, Hs):
@@ -358,7 +358,7 @@ def render_panorama(ims, Hs):
             panorama[:origsz[0], :origsz[1]] = back_warp(ims[i], Hs[i], x, y)
         else:
             temp_panorama[:origsz[0], :origsz[1]] = back_warp(ims[i], Hs[i], x, y)
-            panorama = merge_panorama(panorama, temp_panorama, mask, levels)
+            panorama = pyramid_blending(panorama, temp_panorama, mask, levels, 5, 5)
 
     return panorama[:origsz[0], :origsz[1]]
 
@@ -371,7 +371,7 @@ def max_y(im, where):
     return np.where(np.sum(im, axis=1) != 0)[0][where]
 
 
-def generate_best_mask(warped_corners, curr_pan, added_pan, curr_im_idx, minx, miny):
+def generate_best_mask(warped_corners, curr_pan, added_pan, curr_im_idx, minx, miny, max_cover=False):
     startx = int(warped_corners[:, 0, curr_im_idx].min() - minx)
     endx = int(warped_corners[:, 0, curr_im_idx-1].max() - minx)
     starty = int(warped_corners[:, 1, curr_im_idx-1:curr_im_idx+1].min() - miny)
@@ -387,10 +387,15 @@ def generate_best_mask(warped_corners, curr_pan, added_pan, curr_im_idx, minx, m
 
     mask = np.zeros(curr_pan.shape, dtype=np.bool)
     mask[:, :startx] = True
+    mask[:, endx:] = False
     for i in range(path.size):
         mask[i+starty, :startx + path[i] + 1] = True
     # plt.figure(); plt.imshow(mask)
-    mask[np.logical_and(curr_pan == 0., added_pan != 0.)] = False
+
+    if max_cover:
+        mask[np.logical_and(curr_pan == 0., added_pan != 0.)] = False
+        mask[np.logical_and(curr_pan != 0., added_pan == 0.)] = True
+
     # plt.figure(); plt.imshow(mask)
     # plt.show()
     return mask
@@ -440,35 +445,35 @@ def find_best_slice(im1, im2):
 
 def render_panorama_rgb(ims, Hs):
     """
-    :param ims: A list of grayscale images. (Python list)
+    :param ims: A list of RGB images. (Python list)
     :param Hs: A list of 3x3 homography matrices. Hs[i] is a homography that transforms points from the
                 coordinate system of ims [i] to the coordinate system of the panorama. (Python list)
-    :return: panorama − A grayscale panorama image composed of vertical strips, backwarped using homographies
+    :return: panorama − A RGB panorama image composed of vertical strips, backwarped using homographies
                     from Hs, one from every image in ims.
     """
-    levels = 1
+    ims_yiq = [rgb2yiq(im) for im in ims]
+
+    levels = 5
     pow2lv = 2**(levels-1)
     sz, borders, x,y ,warped_corners= get_pan_size_and_borders(ims, Hs)
     origsz = sz
     sz = (sz[0] if sz[0] % pow2lv == 0 else sz[0] + pow2lv - sz[0] % pow2lv,
           sz[1] if sz[1] % pow2lv == 0 else sz[1] + pow2lv - sz[1] % pow2lv)
-    panorama = np.zeros(sz)
-    temp_panorama = np.zeros(sz)
-    # mask = np.zeros(sz, dtype=bool)
+    panorama = np.zeros((sz[0], sz[1], 3))
+    temp_panorama = np.zeros((sz[0], sz[1], 3))
 
-    for i in range(len(ims)):
+    for i in range(len(ims_yiq)):
         temp_panorama[:] = 0
-        # mask[:] = False
-        bstart, bend = borders[i], borders[i + 1]
-        # mask[:, :bstart] = True
         if i == 0:
-            panorama[:origsz[0], :origsz[1]] = back_warp(ims[i], Hs[i], x, y)
+            for cnl in range(3):
+                panorama[:origsz[0], :origsz[1], cnl] = back_warp(ims_yiq[i][:,:,cnl], Hs[i], x, y)
         else:
-            temp_panorama[:origsz[0], :origsz[1]] = back_warp(ims[i], Hs[i], x, y)
-            mask = generate_best_mask(warped_corners, panorama, temp_panorama, i, x[0,0], y[0,0])
-            panorama = merge_panorama(panorama, temp_panorama, mask, levels)
+            for cnl in range(3):
+                temp_panorama[:origsz[0], :origsz[1], cnl] = back_warp(ims_yiq[i][:, :, cnl], Hs[i], x, y)
+            mask = generate_best_mask(warped_corners, panorama[:,:,0], temp_panorama[:,:,0], i, x[0,0], y[0,0])
+            panorama = blend_rgb_image(panorama, temp_panorama, mask, levels, 7, 3)
 
-            plt.figure()
-            plt.subplot(2,1,1); plt.imshow(panorama[:origsz[0], :origsz[1]], cmap=plt.cm.gray)
-            plt.subplot(2,1,2); plt.imshow(mask[:origsz[0], :origsz[1]], cmap=plt.cm.gray)
-    return panorama[:origsz[0], :origsz[1]]
+            # plt.figure()
+            # plt.subplot(2,1,1); plt.imshow(panorama[:origsz[0], :origsz[1], :])
+            # plt.subplot(2,1,2); plt.imshow(mask[:origsz[0], :origsz[1]], cmap=plt.cm.gray)
+    return clipped_yiq2rgb(panorama[:origsz[0], :origsz[1], :])
