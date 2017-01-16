@@ -5,6 +5,7 @@ from scipy.ndimage.filters import convolve
 from scipy.ndimage import map_coordinates
 import matplotlib.pyplot as plt
 from numpy.matlib import repmat
+from scipy.ndimage.filters import minimum_filter
 
 # TODO - ret type in all functions!
 
@@ -382,8 +383,13 @@ def generate_best_mask(warped_corners, curr_pan, added_pan, curr_im_idx, minx, m
     last_not_all_throes = max_y(addedim, -1)
     starty += first_not_all_throes
     if last_not_all_throes+1 != addedim.shape[0]:
-        endy += addedim.shape[0] - last_not_all_throes
-    path = find_best_slice(curr_pan[starty:endy+1, startx:endx+1], added_pan[starty:endy+1, startx:endx+1])
+        endy -= (addedim.shape[0]-last_not_all_throes)
+
+    # where there is no overlap, count as big mistake?
+
+
+    path = find_best_slice(curr_pan[starty:endy+1, startx:endx+1], added_pan[starty:endy+1, startx:endx+1]) + 1
+    # adding 1 to path because everything in the path is brought from the left image
 
     mask = np.zeros(curr_pan.shape, dtype=np.bool)
     mask[:, :startx] = True
@@ -409,28 +415,39 @@ def find_best_slice(im1, im2):
     :param im2:
     :return:
     """
-    height = im1.shape[0]-1
-    from scipy.ndimage.filters import minimum_filter
+    height = im1.shape[0]
     E = np.power(im1-im2, 2)
+
     # plt.figure()
     # plt.imshow(E, cmap=plt.cm.gray)
-    for r in range(1,height):
-        rel_min = minimum_filter(E[r-1, :], size=1)
-        E[r, :] += rel_min
+
+    # dynamically calculate accumulated errors (second row until the end)
+    for r in range(1, height):
+        E[r, :] += minimum_filter(E[r-1, :], size=1)
+
+    # now backtrace to find ultimate path
     path = np.zeros(height, dtype=np.int)
-    path[-1] = np.argmin(E[height, :])
+    path[-1] = np.argmin(E[-1, :])
     for r in range(height-2, -1, -1):
-        if path[r+1] == 0:  # TODO - comment this!!! what am i doing here
-            s, i = 0, 0
+        if path[r+1] == 0:
+            # if starting from left edge of the image in next row, only need to account for two possible origin
+            # cells above
+            s, i = 0, 0  # s is starting pos in current row, i is correction factor to the left
         else:
             s, i = int(path[r+1]-1), 1
-        e = int(min(path[r+1]+2, E.shape[1]+1))
-        path[r] = path[r+1] + np.argmin(E[r, s:e]) - i
+        e = int(min(path[r+1]+2, E.shape[1]))  # end is the end pos in current row(can't be larger than width)
 
-    res = np.zeros(im1.shape)
-    for i in range(path.size):
-        E[i,path[i]]=1
-        res[i,:path[i]+1]=1
+        # if upper row left and middle are equal, go straight up
+        if E[r, s] == E[r, s+1]:
+            path[r] = path[r+1]
+        else:
+            path[r] = path[r+1] + np.argmin(E[r, s:e]) - i
+
+    # TODO - from here delete
+    # res = np.zeros(im1.shape)
+    # for i in range(path.size):
+    #     E[i,path[i]]=1
+    #     res[i,:path[i]+1]=1
     # plt.figure()
     # plt.imshow(res, cmap=plt.cm.gray)
     # plt.figure()
@@ -438,7 +455,7 @@ def find_best_slice(im1, im2):
     # res = np.multiply(res, im1) + np.multiply(1-res, im2)
     # plt.figure()
     # plt.imshow(res, cmap=plt.cm.gray)
-    # plt.show(block=True)
+    # # plt.show(block=True)
 
     return path
 
@@ -453,6 +470,7 @@ def render_panorama_rgb(ims, Hs):
     """
     ims_yiq = [rgb2yiq(im) for im in ims]
 
+    alpha_ker_size = 11
     levels = 1
     pow2lv = 2**(levels-1)
     sz, borders, x,y ,warped_corners= get_pan_size_and_borders(ims, Hs)
@@ -470,8 +488,8 @@ def render_panorama_rgb(ims, Hs):
         else:
             for cnl in range(3):
                 temp_panorama[:origsz[0], :origsz[1], cnl] = back_warp(ims_yiq[i][:, :, cnl], Hs[i], x, y)
-            mask = generate_best_mask(warped_corners, panorama[:,:,0], temp_panorama[:,:,0], i, x[0,0], y[0,0])
-            mask = blur_spatial(mask.astype(np.float32), 15)
+            mask = generate_best_mask(warped_corners, panorama[:,:,0], temp_panorama[:,:,0], i, x[0,0], y[0,0], max_cover=True)
+            mask = blur_spatial(mask.astype(np.float32), alpha_ker_size)
             neg_mask = 1 - mask
             for cnl in range(3):
                 panorama[:,:,cnl] = np.multiply(panorama[:,:,cnl], mask) + np.multiply(temp_panorama[:,:,cnl], neg_mask)
