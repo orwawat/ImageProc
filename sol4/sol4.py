@@ -416,11 +416,11 @@ def find_best_slice(im1, im2):
     # plt.imshow(E, cmap=plt.cm.gray)
     for r in range(1,height):
         rel_min = minimum_filter(E[r-1, :], size=1)
-        E[r, :] += rel_min[1]
+        E[r, :] += rel_min
     path = np.zeros(height, dtype=np.int)
     path[-1] = np.argmin(E[height, :])
     for r in range(height-2, -1, -1):
-        if path[r+1] == 0:
+        if path[r+1] == 0:  # TODO - comment this!!! what am i doing here
             s, i = 0, 0
         else:
             s, i = int(path[r+1]-1), 1
@@ -453,7 +453,7 @@ def render_panorama_rgb(ims, Hs):
     """
     ims_yiq = [rgb2yiq(im) for im in ims]
 
-    levels = 5
+    levels = 1
     pow2lv = 2**(levels-1)
     sz, borders, x,y ,warped_corners= get_pan_size_and_borders(ims, Hs)
     origsz = sz
@@ -471,7 +471,11 @@ def render_panorama_rgb(ims, Hs):
             for cnl in range(3):
                 temp_panorama[:origsz[0], :origsz[1], cnl] = back_warp(ims_yiq[i][:, :, cnl], Hs[i], x, y)
             mask = generate_best_mask(warped_corners, panorama[:,:,0], temp_panorama[:,:,0], i, x[0,0], y[0,0])
-            panorama = blend_rgb_image(panorama, temp_panorama, mask, levels, 7, 3)
+            mask = blur_spatial(mask.astype(np.float32), 15)
+            neg_mask = 1 - mask
+            for cnl in range(3):
+                panorama[:,:,cnl] = np.multiply(panorama[:,:,cnl], mask) + np.multiply(temp_panorama[:,:,cnl], neg_mask)
+            # panorama = blend_rgb_image(panorama, temp_panorama, mask, levels, 7, 3)
 
             # plt.figure()
             # plt.subplot(2,1,1); plt.imshow(panorama[:origsz[0], :origsz[1], :])
