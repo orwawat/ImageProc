@@ -1,6 +1,6 @@
 My solution to the bonus stitching using dynamic programming is based upon the ideas presented in class.
 However, the solution we discussed had an assumption that the overlap area between the images is a rectangle parallel
-to the axes. In out case with the panorama stitching, the projected images doesn't fit as such a rectangle in the
+to the axes. In our case with the panorama stitching, the projected images doesn't fit as such a rectangle in the
 panorama plain (except the 'core' frame), instead they are projected in all kind of directions and with different
 angles between edges of the warped frames and areas of overlap.
 

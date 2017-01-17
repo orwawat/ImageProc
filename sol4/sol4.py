@@ -1,5 +1,5 @@
 from sol4_utils import *
-from sol4_add import non_maximum_suppression as nms, spread_out_corners as spoc, least_squares_homography as lsh
+import sol4_add
 import numpy as np
 from scipy.ndimage.filters import convolve
 from scipy.ndimage import map_coordinates
@@ -50,7 +50,7 @@ def harris_corner_detector(im):
     det_M = np.multiply(Ix2,Iy2) - np.power(IxIy, 2)
     R = det_M - K*np.power(trace_M,2)
 
-    return np.fliplr(np.array(np.where(nms(R))).transpose()).astype(np.float32)
+    return np.fliplr(np.array(np.where(sol4_add.non_maximum_suppression(R))).transpose()).astype(np.float32)
 
 
 def map_coord_2_level(pos, li=0, lj=2):
@@ -126,7 +126,7 @@ def find_features(pyr):
                 image. These coordinates are provided at the pyramid level pyr[0].
         desc − A feature descriptor array with shape (K,K,N).
     """
-    pos = spoc(pyr[0], M, N, SPOC_RADIUS)
+    pos = sol4_add.spread_out_corners(pyr[0], M, N, SPOC_RADIUS)
     pos_flipped = np.fliplr(pos)
     pos_in_l3 = map_coord_2_level(pos_flipped)
     desc = sample_descriptor(pyr[2], pos_in_l3, DESC_RADIUS)
@@ -213,14 +213,14 @@ def ransac_homography(pos1, pos2, num_iters, inlier_tol):
     inliers = np.array([])
     for n in range(num_iters):
         rnd_ind = np.random.choice(N, 4)
-        H = lsh(pos1[rnd_ind,:], pos2[rnd_ind, :])
+        H = sol4_add.least_squares_homography(pos1[rnd_ind,:], pos2[rnd_ind, :])
         if H is None: continue
         sqdiff = np.power(np.linalg.norm(apply_homography(pos1, H) - pos2, axis=1), 2)
         inlierstemp = np.where(sqdiff < inlier_tol)[0]
         if inlierstemp.size > inliers.size:
             inliers = inlierstemp
 
-    return lsh(pos1[inliers, :], pos2[inliers, :]), inliers
+    return sol4_add.least_squares_homography(pos1[inliers, :], pos2[inliers, :]), inliers
 
 
 def display_matches(im1, im2, pos1, pos2, inliers):
