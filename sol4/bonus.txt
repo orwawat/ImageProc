@@ -1,0 +1,31 @@
+My solution to the bonus stitching using dynamic programming is based upon the ideas presented in class.
+However, the solution we discussed had an assumption that the overlap area between the images is a rectangle parallel
+to the axes. In out case with the panorama stitching, the projected images doesn't fit as such a rectangle in the
+panorama plain (except the 'core' frame), instead they are projected in all kind of directions and with different
+angles between edges of the warped frames and areas of overlap.
+
+The basic solution was this: for each each projected frame, merge the current panorama with the new frame.
+To do that, slice from both images the overlapping area. Calculate the squared error at each pixel, and find the
+optimal path to minimize the error with dynamic programming.
+Finally, create a mask from the path (above and beneath the path there is no data from either images) - everything to
+the left of the path is taken from current panorama, everything to the right is taken from the new projected frame.
+
+Now, I've noticed that large areas of 0-padding beneath and above the images hurt the result, usually causing the
+algorithm to always 'stick' to the left side of the overlap areas (the bottom rows become pretty constant and then
+argmin returns the first index to contain the minimum value in the row). So, in order to account for this problem I
+also sliced out the rows which was all 0's in both images.
+
+The second problem I had to deal with was 'triangles' areas in the bottom of the overlap area, where only the
+left image had data. Since any intensity has bigger error when compared to 0 from the other image than 0 against 0,
+it also should create a bias and 'prefer' not to cut in the middle of such areas. However, in practice I saw that it
+had minor effects and the algorithm almost always chose unnatural cuts in through this parts. so, I synthetically
+inserted ths prior in a form of larger error by assign a constant factor where there was 0's before. This factor
+if presented in both images cancels itself where non of the images has data, but increase the error otherwise.
+
+Another heuristic i used to try and create more natural slices is to prefer go "straight up" if the left-up and
+straight-up errors were the same.
+
+Finally, the last issue was different exposures. all those methods worked nice on similar images but when the
+exposure/lighting of the objects was different, the pyramid blending heuristic performed better. in order to account
+for it a bit, I used alpha-blending (tethering). Instead of simply perform splining using the mask, I blurred it with a
+gaussian with small kernel, and used took mask*left_image+(1-mask)*right_image as the result of the blend.
