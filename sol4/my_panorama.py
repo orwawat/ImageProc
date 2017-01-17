@@ -74,21 +74,21 @@ def gen_pan_with_pyr_blend(ims_rgb, Htot):
     return panorama
 
 
-def gen_pan_with_dynamic_stiching(ims_rgb, Htot):
+def gen_pan_with_dynamic_stitching(ims_rgb, Htot):
     """
     Renders rgb panorama with dynamic programming stiching. Find stich in YIQ and sue it for all channels.
     :param ims_rgb: a list of consecutive rgb images
     :param Htot: a list of corresponding homographies from image i to the center image
     :return: A rgb image with the rendered panorama
     """
-    # generate panorama using dynamic proggramming stiching
+    # generate panorama using dynamic programming stitching
     panorama = sol4.render_panorama_rgb(ims_rgb, Htot)
     return panorama
 
 
 def main():
-    generate_panorama('external/', 'shuk', 4, gen_pan_with_pyr_blend)
-    generate_panorama('external/', 'morning_shuk', 4, gen_pan_with_dynamic_stiching)
+    generate_panorama('external/', 'saker', 3, gen_pan_with_pyr_blend) # good
+    generate_panorama('external/', 'morning_shuk', 4, gen_pan_with_dynamic_stitching)
 
     # TODO - add parallax images
 

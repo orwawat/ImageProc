@@ -347,7 +347,7 @@ def back_warp(im, H, x, y):
 
 def render_panorama(ims, Hs):
     """
-    From a successive list of frames, and their trabsformation for the same panorama plane, renders a merged panorma
+    From a successive list of frames, and their transformation for the same panorama plane, renders a merged panorma
     image. Uses the mean between two corresponding warped centers as the borders between warped frames, and performs
     pyramid belnding in order to seamlessly merge the images
     :param ims: A list of grayscale images. (Python list)
@@ -454,12 +454,12 @@ def generate_best_mask(warped_corners, curr_pan, added_pan, curr_im_idx, minx, m
 
 def find_best_slice(im1, im2):
     """
-    TODO
-    take only the sub parts that include only the overlapping parts
-    where it equals 0 in the left image, take it from the right?
-    :param im1:
-    :param im2:
-    :return:
+    Use dynamic proggraming in order to find the upward path which slices the two images in such a way that the total
+    error is minimal
+    :param im1: greyscale image (left image)
+    :param im2: greyscale image the size of im1, has overlapping parts with im1
+    :return: An array with length equals to the height of im1, each entry marks the rightmost index in the corresponding
+            row (row=i -> column=path[i]) which should be taken from im1 (inclusive!)
     """
     height = im1.shape[0]
     E = np.power(im1-im2, 2)
@@ -491,31 +491,41 @@ def find_best_slice(im1, im2):
 
 def render_panorama_rgb(ims, Hs):
     """
+    From a successive list of (rgb) frames, and transformations for the same panorama plane, renders a merged panorama
+    image. Uses dynamic programing to find the best slicing path between them (perform on the Y channel in the YIQ
+    representation) and use alpha-blending to merge each of the channels before transforming back to RGB
     :param ims: A list of RGB images. (Python list)
     :param Hs: A list of 3x3 homography matrices. Hs[i] is a homography that transforms points from the
                 coordinate system of ims [i] to the coordinate system of the panorama. (Python list)
     :return: panorama − A RGB panorama image composed of vertical strips, backwarped using homographies
                     from Hs, one from every image in ims.
     """
+    # transform images to YIQ representation
     ims_yiq = [rgb2yiq(im) for im in ims]
 
-    alpha_ker_size = 7
-    sz, borders, x,y ,warped_corners= get_pan_size_and_borders(ims, Hs)
+    # inits
+    alpha_ker_size = 7  # used to blur (gaussian) the final mask to perform alpha-blending
+    sz, borders, x, y, warped_corners = get_pan_size_and_borders(ims, Hs)
     panorama = np.zeros((sz[0], sz[1], 3))
     temp_panorama = np.zeros((sz[0], sz[1], 3))
 
     for i in range(len(ims_yiq)):
         temp_panorama[:] = 0
         if i == 0:
+            # backwarp each channel
             for cnl in range(3):
                 panorama[:, :, cnl] = back_warp(ims_yiq[i][:,:,cnl], Hs[i], x, y)
         else:
+            # backwarp each channel
             for cnl in range(3):
                 temp_panorama[:, :, cnl] = back_warp(ims_yiq[i][:, :, cnl], Hs[i], x, y)
+
             mask = generate_best_mask(warped_corners, panorama[:,:,0], temp_panorama[:,:,0], i, x[0,0], y[0,0],
                                       max_cover=False)
             mask = blur_spatial(mask.astype(np.float32), alpha_ker_size)
             neg_mask = 1 - mask
+
+            # alpha-blend each channel separately
             for cnl in range(3):
                 panorama[:,:,cnl] = np.multiply(panorama[:,:,cnl], mask) + np.multiply(temp_panorama[:,:,cnl], neg_mask)
 
