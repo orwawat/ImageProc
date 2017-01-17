@@ -1,0 +1,13 @@
+maor_i
+sol4.py
+sol4_utils.py
+my_panorama.py
+answer_q1.txt
+answer_q2.txt
+answer_q3.txt
+externals/baby_elephant.jpg
+externals/butterfly.jpg
+externals/elephant_butterfly_mask.png
+externals/snowboarder.jpg
+externals/dog.jpg
+externals/snowboarder_dog_mask.png
