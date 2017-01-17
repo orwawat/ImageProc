@@ -24,11 +24,11 @@ def generate_panorama(data_dir, file_prefix, num_images, figsize=(20,20)):
     desc1,   desc2   = p_d[i][1], p_d[i+1][1]
 
     # Find matching feature points.
-    ind1, ind2 = sol4.match_features(desc1, desc2, .65)
+    ind1, ind2 = sol4.match_features(desc1, desc2, .8)
     points1, points2 = points1[ind1,:], points2[ind2,:]
 
     # Compute homography using RANSAC.
-    H12, inliers = sol4.ransac_homography(points1, points2, 10000, 7)
+    H12, inliers = sol4.ransac_homography(points1, points2, 10000, 8)
 
     # Display inlier and outlier matches.
     sol4.display_matches(ims[i], ims[i+1], points1 , points2, inliers=inliers)
@@ -49,10 +49,10 @@ def generate_panorama(data_dir, file_prefix, num_images, figsize=(20,20)):
   plt.show()
 
 def main():
+  generate_panorama('external/', 'shuk'  , 4)
   generate_panorama('external/', 'oxford'  , 2)
   generate_panorama('external/', 'backyard', 3, (20,10))
   generate_panorama('external/', 'office'  , 4)
-  generate_panorama('external/', 'shuk'  , 4)
 
 if __name__ == '__main__':
   main()

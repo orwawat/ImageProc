@@ -7,13 +7,12 @@ import matplotlib.pyplot as plt
 from numpy.matlib import repmat
 from scipy.ndimage.filters import minimum_filter
 
-# TODO - ret type in all functions!
-
+# Constants
 K = 0.04
 BLUR_KER_SIZE = 3
 DERIVE_KER = np.array([[1, 0, -1]], dtype=np.float32)
-M = 7
-N = 7
+M = 8
+N = 8
 SPOC_RADIUS = 12
 DESC_RADIUS = 3
 
@@ -38,7 +37,7 @@ def get_blured_mat_mul(im1, im2):
     """
     return blur_spatial(np.multiply(im1, im2), BLUR_KER_SIZE)
 
-# in my code i should use spread_out_corners (play with n,m but start with n=m=7)
+
 def harris_corner_detector(im):
     """
     Basic harris corner detector (not scale invariant)
@@ -94,7 +93,7 @@ def get_windows_coords(pos, desc_rad, axis=0):
 
 def sample_descriptor(im, pos, desc_rad):
     """
-
+    Takes in an image and an array of points, and sample a secriptor for each of the points
     :param im: − grayscale image to sample within.
     :param pos: − An array with shape (N,2) of [x,y] positions to sample descriptors in im.
     :param desc_rad: − ”Radius” of descriptors to compute (see below).
@@ -119,6 +118,8 @@ def sample_descriptor(im, pos, desc_rad):
 
 def find_features(pyr):
     """
+    Takes in a gaussian pyramid of an image with 3 levels, find intersting features and return their location,
+    as well as their corresponding descriptors
     :param pyr: Gaussian pyramid of a grayscale image having 3 levels.
     :return:
         pos − An array with shape (N,2) of [x,y] feature location per row found in the (third pyramid level of the)
@@ -178,21 +179,27 @@ def match_features(desc1, desc2, min_score):
 
 def apply_homography(pos1, H12):
     """
+    Takes in an homography matrix and an array of points, and return the transformed points (for each points, make it
+    homogeneous, transform it, and get back to 2d points)
     :param pos1: An array with shape (N,2) of [x,y] point coordinates.
     :param H12: A 3x3 homography matrix.
     :return: An array with the same shape as pos1 with [x,y] point coordinates in image i+1
                 obtained from transforming pos1 using H12.
     """
+    EPSILON = 1E-10
     xyz1 = np.ones((3, pos1.shape[0]))
     xyz1[0:2,:] = pos1.transpose()
     xyz2 = np.matmul(H12, xyz1)
-    xyz2[2, np.where(xyz2[2,:]==0)] = 1E-10
+    xyz2[2, np.where(xyz2[2,:]==0)] = EPSILON  # avoid division by 0
     xy2 = xyz2[0:2,:] / xyz2[2,:]
     return xy2.transpose()
 
 
 def ransac_homography(pos1, pos2, num_iters, inlier_tol):
     """
+    Takes in two arrays of points, and perform a ransac proccess inorder to find the best homography matrix which
+    transforms the most points in pos1 to their corrsponding points in pos2 (successful transformation is
+    counted by inlier tol)
     :param pos1: An Array, with shape (N,2) containing n rows of [x,y] coordinates of matched points.
     :param pos2: see pos1
     :param num_iters: Number of RANSAC iterations to perform.
@@ -208,15 +215,19 @@ def ransac_homography(pos1, pos2, num_iters, inlier_tol):
         rnd_ind = np.random.choice(N, 4)
         H = lsh(pos1[rnd_ind,:], pos2[rnd_ind, :])
         if H is None: continue
-        sqdiff = np.power(np.linalg.norm(apply_homography(pos1, H) - pos2, axis=1),2)
+        sqdiff = np.power(np.linalg.norm(apply_homography(pos1, H) - pos2, axis=1), 2)
         inlierstemp = np.where(sqdiff < inlier_tol)[0]
         if inlierstemp.size > inliers.size:
             inliers = inlierstemp
-    return lsh(pos1[inliers,:], pos2[inliers,:]), inliers
+
+    return lsh(pos1[inliers, :], pos2[inliers, :]), inliers
 
 
 def display_matches(im1, im2, pos1, pos2, inliers):
     """
+    Takes in two images, their interesting features location (corresponding arrays) and indices array marking inliers,
+    and present the image side by side, with red dots for each feature, blue line connect a matched couple which is
+    considered to be an outlier, and a yellow line marks inlier match
     :param im1: grayscale image
     :param im2: grayscale image
     :param pos1, pos2: − Two arrays with shape (N,2) each, containing N rows of [x,y] coordinates of matched
@@ -242,12 +253,11 @@ def display_matches(im1, im2, pos1, pos2, inliers):
              np.vstack((y1[inliers][np.newaxis, :], y2[inliers][np.newaxis, :])), c='y', lw=.4,
              ms=0)
 
-    # plt.show() TODO - need or not?
-
-
 
 def accumulate_homographies(H_successive, m):
     """
+    Transform a list of homography matrices from frame i to frame i+1, to a new list of homography matrices
+    (longer by 1) in which every matrix i is the homography between frame i to frame m.
     :param H_successive: A list of M−1 3x3 homography matrices where H successive[i] is a homography that
             transforms points from coordinate system i to coordinate system i+1.
     :param m: Index of the coordinate system we would like to accumulate the given homographies towards.
@@ -267,9 +277,9 @@ def accumulate_homographies(H_successive, m):
 
 def extract_corners_and_center(im):
     """
-    TODO
-    :param im:
-    :return:
+    A util function which recieves an image as an input, and a return an arrat with it's corners, and its center
+    :param im: np array
+    :return: a [5,2] array of [x,y] points ordered [upper-left, upper-right, bottom-right, bottom-left, center]
     """
     return np.array([[0,0], [im.shape[1]-1,0], [im.shape[1]-1,im.shape[0]-1], [0,im.shape[0]-1],
                      [(im.shape[1]-1)//2,(im.shape[0]-1)//2]])
@@ -277,91 +287,106 @@ def extract_corners_and_center(im):
 
 def get_pan_size_and_borders(ims, Hs):
     """
+    For a given list of images and their transformation matrices to a shared plane (the panorama plane),
+    calculate the resulting panorama exact dimensions. In addition, return the division of bordered between frame, a
+    corresponding mesh grady of x and y for the panorama, and the location of each corner point in each frame in the
+    panorama plane (see extract_corners_and_center)
     :param ims: A list of grayscale images. (Python list)
     :param Hs: A list of 3x3 homography matrices. Hs[i] is a homography that transforms points from the
                 coordinate system of ims [i] to the coordinate system of the panorama. (Python list)
-    :return: sz − shape as a tuple (rows,cols) of the final panorama image, TODO
+    :return:
+        sz − shape as a tuple (rows,cols) of the final panorama image
+        x,y - the result of np meshgrid, sized like sz, and span the entire range which any point in any of the
+                images has transformed onto
+        warped_corners - np array of size (5,2,k) where k is the number of frames given, each channel contain
+                            the result of applying corresponding homography n the results of extract_corners_and_center
     """
-
+    # inits
     borders = [0] * (len(ims)+1)
     last_center_x = None
     warped_corners = np.zeros((5,2,len(ims)))
+
+    # calculate warped_corners and borders between frames
     for i in range(len(ims)):
         warped_corners[:,:,i] = apply_homography(extract_corners_and_center(ims[i]), Hs[i])
         if last_center_x is not None:
             borders[i] = int((last_center_x + warped_corners[-1, 0,i]) // 2)
         last_center_x = warped_corners[-1, 0,i]
 
+    # find corners of panorama
     minx = warped_corners[:,0,:].min()
     maxx = warped_corners[:,0,:].max()
     miny = warped_corners[:,1,:].min()
     maxy = warped_corners[:,1,:].max()
 
+    # update borders and calculate panorama size and mesh grid
     borders = (np.asarray(borders) - minx).astype(np.int)
     borders[0] = 0
     borders[-1] = int(maxx-minx+1)
     height, width = int(maxy-miny+1), int(maxx-minx+1)
     x, y = np.meshgrid(np.linspace(minx, maxx, width), np.linspace(miny, maxy, height))
-    return (height, width), borders, x,y,warped_corners
+
+    return (height, width), borders, x, y, warped_corners
 
 
 def back_warp(im, H, x, y):
     """
-    TODO
-    :param im:
-    :param H:
-    :param x:
-    :param y:
-    :return:
+    For the given image and its transformation matrix to the panorama plane, and coordinate of x and y needed to be
+        filled inside the panorama, perform backfilling
+    :param im: A greyscale image
+    :param H: Transformation matrix [3X3] from the image plane to the panorama plane
+    :param x: The x coordinates to be filled (2d array)
+    :param y: The y coordinates to be filled (2d array), size matching the x
+    :return: a greyscale image, with size equal to x and y, backfilled from the given image
     """
     warped_im_coords = np.hstack((x.reshape((-1, 1)), y.reshape((-1, 1))))
     warped_im_coords = apply_homography(warped_im_coords, np.linalg.inv(H))
     warped_im = map_coordinates(im, np.flipud(warped_im_coords.T), order=1, prefilter=False)
-    return warped_im.reshape(x.shape)
-
-
-def merge_panorama(panorama, temp_panorama, mask, levels):
-    """
-    TODO
-    :param panorama:
-    :param temp_panorama:
-    :param mask:
-    :param levels:
-    :return:
-    """
-    return
+    return warped_im.reshape(x.shape).astype(np.float32)
 
 
 def render_panorama(ims, Hs):
     """
+    From a successive list of frames, and their trabsformation for the same panorama plane, renders a merged panorma
+    image. Uses the mean between two corresponding warped centers as the borders between warped frames, and performs
+    pyramid belnding in order to seamlessly merge the images
     :param ims: A list of grayscale images. (Python list)
     :param Hs: A list of 3x3 homography matrices. Hs[i] is a homography that transforms points from the
                 coordinate system of ims [i] to the coordinate system of the panorama. (Python list)
     :return: panorama − A grayscale panorama image composed of vertical strips, backwarped using homographies
                     from Hs, one from every image in ims.
     """
-    levels = 6
+    # inits
+    levels = 6  # Max levells for the panorama blending
     pow2lv = 2**(levels-1)
-    sz, borders, x,y ,warped_corners= get_pan_size_and_borders(ims, Hs)
+    sz, borders, x, y, warped_corners= get_pan_size_and_borders(ims, Hs)
     origsz = sz
+    # find working size s.t we can perform blending on it
     sz = (sz[0] if sz[0] % pow2lv == 0 else sz[0] + pow2lv - sz[0] % pow2lv,
           sz[1] if sz[1] % pow2lv == 0 else sz[1] + pow2lv - sz[1] % pow2lv)
     panorama = np.zeros(sz)
     temp_panorama = np.zeros(sz)
     mask = np.zeros(sz, dtype=bool)
 
+    # For each consecutive image, fill a panorama plane by backfilling from the image, then blend with current image
     for i in range(len(ims)):
         temp_panorama[:] = 0
         mask[:] = False
         bstart, bend = borders[i], borders[i + 1]
         mask[:, :bstart] = True
         if i == 0:
+            # no need to blend when only 1 image has been warped
             panorama[:origsz[0], :origsz[1]] = back_warp(ims[i], Hs[i], x, y)
         else:
             temp_panorama[:origsz[0], :origsz[1]] = back_warp(ims[i], Hs[i], x, y)
             panorama = pyramid_blending(panorama, temp_panorama, mask, levels, 5, 5)
 
-    return panorama[:origsz[0], :origsz[1]]
+    return panorama[:origsz[0], :origsz[1]]  # slice out the actual image without the extra padding for size
+
+
+# -------------------------------------------------------------------------------------------------
+# ------------------------------------- Bonus Part ------------------------------------------------
+# -------------------------------------------------------------------------------------------------
 
 def max_y(im, where):
     """
@@ -369,7 +394,10 @@ def max_y(im, where):
     :param im:
     :return:
     """
-    return np.where(np.sum(im, axis=1) != 0)[0][where]
+    return np.where(np.sum(im, axis=1) != 0.)[0][where] # rows of not all 0's
+    # min_overlapping_perc = 0.5
+    # im[im > 0.] = 1
+    # return np.where(np.average(im, axis=1) > min_overlapping_perc)[0][where] # make sure there is a significant part of the images in the row
 
 
 def generate_best_mask(warped_corners, curr_pan, added_pan, curr_im_idx, minx, miny, max_cover=False):
@@ -385,25 +413,33 @@ def generate_best_mask(warped_corners, curr_pan, added_pan, curr_im_idx, minx, m
     if last_not_all_throes+1 != addedim.shape[0]:
         endy -= (addedim.shape[0]-last_not_all_throes)
 
-    # where there is no overlap, count as big mistake?
+    # where there is no overlap, but one the images are present, count as a mistake so it will try no to cut in the
+    # middle of such areas
+    im1, im2 = curr_pan[starty:endy+1, startx:endx+1].copy(), added_pan[starty:endy+1, startx:endx+1].copy()
+    im1[np.logical_and(im1 == 0., im2 != 0.)] = -0.2
+    im2[np.logical_and(im1 != 0., im2 == 0.)] = -0.2
 
-
-    path = find_best_slice(curr_pan[starty:endy+1, startx:endx+1], added_pan[starty:endy+1, startx:endx+1]) + 1
+    # path = find_best_slice(curr_pan[starty:endy+1, startx:endx+1], added_pan[starty:endy+1, startx:endx+1]) #+ 1
+    path = find_best_slice(im1, im2) + 1
     # adding 1 to path because everything in the path is brought from the left image
 
     mask = np.zeros(curr_pan.shape, dtype=np.bool)
-    mask[:, :startx] = True
+    mask[:, :startx+1] = True
     mask[:, endx:] = False
     for i in range(path.size):
         mask[i+starty, :startx + path[i] + 1] = True
-    # plt.figure(); plt.imshow(mask)
 
     if max_cover:
         mask[np.logical_and(curr_pan == 0., added_pan != 0.)] = False
         mask[np.logical_and(curr_pan != 0., added_pan == 0.)] = True
 
     # plt.figure(); plt.imshow(mask)
-    # plt.show()
+    # plt.figure(); plt.imshow(np.multiply(mask, curr_pan))
+    # plt.figure(); plt.imshow(np.multiply(1-mask, added_pan))
+    # plt.figure(); plt.imshow(added_pan)
+    # plt.figure(); plt.imshow(np.multiply(mask, curr_pan)+np.multiply(1-mask, added_pan))
+    plt.show()
+
     return mask
 
 def find_best_slice(im1, im2):
@@ -417,7 +453,7 @@ def find_best_slice(im1, im2):
     """
     height = im1.shape[0]
     E = np.power(im1-im2, 2)
-
+    #
     # plt.figure()
     # plt.imshow(E, cmap=plt.cm.gray)
 
@@ -443,7 +479,7 @@ def find_best_slice(im1, im2):
         else:
             path[r] = path[r+1] + np.argmin(E[r, s:e]) - i
 
-    # TODO - from here delete
+    # # TODO - from here delete
     # res = np.zeros(im1.shape)
     # for i in range(path.size):
     #     E[i,path[i]]=1
@@ -455,7 +491,7 @@ def find_best_slice(im1, im2):
     # res = np.multiply(res, im1) + np.multiply(1-res, im2)
     # plt.figure()
     # plt.imshow(res, cmap=plt.cm.gray)
-    # # plt.show(block=True)
+    # plt.show(block=True)
 
     return path
 
@@ -470,7 +506,7 @@ def render_panorama_rgb(ims, Hs):
     """
     ims_yiq = [rgb2yiq(im) for im in ims]
 
-    alpha_ker_size = 11
+    alpha_ker_size = 7
     levels = 1
     pow2lv = 2**(levels-1)
     sz, borders, x,y ,warped_corners= get_pan_size_and_borders(ims, Hs)
@@ -488,7 +524,8 @@ def render_panorama_rgb(ims, Hs):
         else:
             for cnl in range(3):
                 temp_panorama[:origsz[0], :origsz[1], cnl] = back_warp(ims_yiq[i][:, :, cnl], Hs[i], x, y)
-            mask = generate_best_mask(warped_corners, panorama[:,:,0], temp_panorama[:,:,0], i, x[0,0], y[0,0], max_cover=True)
+            mask = generate_best_mask(warped_corners, panorama[:,:,0], temp_panorama[:,:,0], i, x[0,0], y[0,0], max_cover=False)
+            # plt.figure();plt.imshow(temp_panorama[:,:,0])
             mask = blur_spatial(mask.astype(np.float32), alpha_ker_size)
             neg_mask = 1 - mask
             for cnl in range(3):
