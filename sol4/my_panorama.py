@@ -3,12 +3,14 @@ import numpy as np
 import os
 import sol4
 import sol4_utils
+from scipy.misc import imsave
 
 
 def generate_panorama(data_dir, file_prefix, num_images, pan_gen, figsize=(20, 20)):
     """
     Geneare panorama out of the files in the given dir with the given prefix.
     displays the results
+    Finally, it saves the result in the data_dir with the name file_prefix_panoram.jpg
     :param data_dir: The directory where the image are
     :param file_prefix: The prefix for each image (convention is nameN)
     :param num_images: how many images to render from the series
@@ -55,6 +57,9 @@ def generate_panorama(data_dir, file_prefix, num_images, pan_gen, figsize=(20, 2
     # generate the panorama
     panorama = pan_gen(ims_rgb, Htot)
 
+    # save the result
+    imsave(os.path.join(data_dir, file_prefix + '_panorama.jpg'), panorama)
+
     # plot the panorama
     plt.figure(figsize=figsize)
     plt.imshow(panorama.clip(0, 1))
@@ -87,15 +92,8 @@ def gen_pan_with_dynamic_stitching(ims_rgb, Htot):
 
 
 def main():
-    generate_panorama('external/', 'saker', 3, gen_pan_with_pyr_blend) # good
+    generate_panorama('external/', 'saker', 3, gen_pan_with_pyr_blend)
     generate_panorama('external/', 'morning_shuk', 4, gen_pan_with_dynamic_stitching)
-
-    # TODO - add parallax images
-
-    # TODO - delete
-    generate_panorama('external/', 'oxford', 2, gen_pan_with_pyr_blend)
-    generate_panorama('external/', 'backyard', 3, gen_pan_with_pyr_blend, (20, 10))
-    generate_panorama('external/', 'office', 4, gen_pan_with_pyr_blend)
 
 
 if __name__ == '__main__':
