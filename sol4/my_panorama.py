@@ -94,7 +94,7 @@ def main():
 
     # TODO - delete
     generate_panorama('external/', 'oxford', 2, gen_pan_with_pyr_blend)
-    generate_panorama('external/', 'backyard', 3, (20, 10), gen_pan_with_pyr_blend)
+    generate_panorama('external/', 'backyard', 3, gen_pan_with_pyr_blend, (20, 10))
     generate_panorama('external/', 'office', 4, gen_pan_with_pyr_blend)
 
 

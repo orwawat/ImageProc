@@ -357,7 +357,7 @@ def render_panorama(ims, Hs):
                     from Hs, one from every image in ims.
     """
     # inits
-    levels = 6  # Max levells for the panorama blending
+    levels = 6  # Max levels for the panorama blending
     pow2lv = 2**(levels-1)
     sz, borders, x, y, warped_corners= get_pan_size_and_borders(ims, Hs)
     origsz = sz
@@ -381,7 +381,8 @@ def render_panorama(ims, Hs):
             temp_panorama[:origsz[0], :origsz[1]] = back_warp(ims[i], Hs[i], x, y)
             panorama = pyramid_blending(panorama, temp_panorama, mask, levels, 5, 5)
 
-    return panorama[:origsz[0], :origsz[1]]  # slice out the actual image without the extra padding for size
+    # slice out the actual image without the extra padding for size
+    return panorama[:origsz[0], :origsz[1]].astype(np.float32)
 
 
 # -------------------------------------------------------------------------------------------------
@@ -390,39 +391,54 @@ def render_panorama(ims, Hs):
 
 def max_y(im, where):
     """
-    TODO
-    :param im:
-    :return:
+    returns the index of the first (last) row which is not all 0's.
+    :param im: The image to analyze, greyscale
+    :param where: 0 to get the first row not all 0's, -1 to get the last
+    :return: index of row in the image f the first (last) row which is not all 0's.
     """
-    return np.where(np.sum(im, axis=1) != 0.)[0][where] # rows of not all 0's
-    # min_overlapping_perc = 0.5
-    # im[im > 0.] = 1
-    # return np.where(np.average(im, axis=1) > min_overlapping_perc)[0][where] # make sure there is a significant part of the images in the row
+    return np.where(np.sum(im, axis=1) != 0.)[0][where]  # rows of not all 0's
 
 
 def generate_best_mask(warped_corners, curr_pan, added_pan, curr_im_idx, minx, miny, max_cover=False):
-    startx = int(warped_corners[:, 0, curr_im_idx].min() - minx)
-    endx = int(warped_corners[:, 0, curr_im_idx-1].max() - minx)
-    starty = int(warped_corners[:, 1, curr_im_idx-1:curr_im_idx+1].min() - miny)
-    endy = int(warped_corners[:, 1, curr_im_idx-1:curr_im_idx+1].max() - miny)
-    # todo - add test here and after 0 correction that does not cross boundries
+    """
+    generates the best possible mask (heuristic) for the two given images to stitch together with minimal loss
+    :param warped_corners: see get_pan_size_and_borders - return
+    :param curr_pan: the current panorama image (n leftmost images), greyscale
+    :param added_pan: the new panorama image to merge (the n+1 image), greyscale
+    :param curr_im_idx: the index of the current image (of added_pan)
+    :param minx, miny: the [x,y] points relative to the center image corresponding to [0,0] location in the panorama
+    :param max_cover: if true, forces the mask to not waste any possible covered area (if one of the images cover a
+            certain area while the other don't, take this part even the slicing decided otherwise)
+    :return: a mask - bool typed array the size of curr_pan, true where curr_pan should be considered,
+                    and false otherwise
+    """
+    # base slicing indices where the overlap between the images occur
+    # (hence, where the best slicing path should be found)
+    startx = max(int(warped_corners[:, 0, curr_im_idx].min() - minx), 0)
+    endx = min(int(warped_corners[:, 0, curr_im_idx-1].max() - minx), curr_pan.shape[1])
+    starty = max(int(warped_corners[:, 1, curr_im_idx-1:curr_im_idx+1].min() - miny), 0)
+    endy = min(int(warped_corners[:, 1, curr_im_idx-1:curr_im_idx+1].max() - miny), curr_pan.shape[0])
+
+    # find and remove the extra padding rows from bottom and top where both images do not fill (all 0's rows)
     addedim = curr_pan[starty:endy+1, startx:endx+1] + added_pan[starty:endy+1, startx:endx+1]
     first_not_all_throes = max_y(addedim, 0)
     last_not_all_throes = max_y(addedim, -1)
-    starty += first_not_all_throes
-    if last_not_all_throes+1 != addedim.shape[0]:
+    starty += first_not_all_throes  # can't get out of boundries
+    if last_not_all_throes+1 != addedim.shape[0]:  # if there is padding in the bottom
         endy -= (addedim.shape[0]-last_not_all_throes)
 
-    # where there is no overlap, but one the images are present, count as a mistake so it will try no to cut in the
+    # where there is no overlap, but one the images are present, count as a mistake so it will try not to cut in the
     # middle of such areas
+    SINGLE_IMAGE_OVERLAP_MISTAKE_FACTOR = -0.2
     im1, im2 = curr_pan[starty:endy+1, startx:endx+1].copy(), added_pan[starty:endy+1, startx:endx+1].copy()
-    im1[np.logical_and(im1 == 0., im2 != 0.)] = -0.2
-    im2[np.logical_and(im1 != 0., im2 == 0.)] = -0.2
+    im1[np.logical_and(im1 == 0., im2 != 0.)] = SINGLE_IMAGE_OVERLAP_MISTAKE_FACTOR
+    im2[np.logical_and(im1 != 0., im2 == 0.)] = SINGLE_IMAGE_OVERLAP_MISTAKE_FACTOR
 
-    # path = find_best_slice(curr_pan[starty:endy+1, startx:endx+1], added_pan[starty:endy+1, startx:endx+1]) #+ 1
-    path = find_best_slice(im1, im2) + 1
+    # finally, in the processed images, find the best path in which to slice
     # adding 1 to path because everything in the path is brought from the left image
+    path = find_best_slice(im1, im2) + 1
 
+    # prepare the final mask
     mask = np.zeros(curr_pan.shape, dtype=np.bool)
     mask[:, :startx+1] = True
     mask[:, endx:] = False
@@ -433,14 +449,8 @@ def generate_best_mask(warped_corners, curr_pan, added_pan, curr_im_idx, minx, m
         mask[np.logical_and(curr_pan == 0., added_pan != 0.)] = False
         mask[np.logical_and(curr_pan != 0., added_pan == 0.)] = True
 
-    # plt.figure(); plt.imshow(mask)
-    # plt.figure(); plt.imshow(np.multiply(mask, curr_pan))
-    # plt.figure(); plt.imshow(np.multiply(1-mask, added_pan))
-    # plt.figure(); plt.imshow(added_pan)
-    # plt.figure(); plt.imshow(np.multiply(mask, curr_pan)+np.multiply(1-mask, added_pan))
-    plt.show()
-
     return mask
+
 
 def find_best_slice(im1, im2):
     """
@@ -453,9 +463,6 @@ def find_best_slice(im1, im2):
     """
     height = im1.shape[0]
     E = np.power(im1-im2, 2)
-    #
-    # plt.figure()
-    # plt.imshow(E, cmap=plt.cm.gray)
 
     # dynamically calculate accumulated errors (second row until the end)
     for r in range(1, height):
@@ -479,20 +486,6 @@ def find_best_slice(im1, im2):
         else:
             path[r] = path[r+1] + np.argmin(E[r, s:e]) - i
 
-    # # TODO - from here delete
-    # res = np.zeros(im1.shape)
-    # for i in range(path.size):
-    #     E[i,path[i]]=1
-    #     res[i,:path[i]+1]=1
-    # plt.figure()
-    # plt.imshow(res, cmap=plt.cm.gray)
-    # plt.figure()
-    # plt.imshow(E, cmap=plt.cm.gray)
-    # res = np.multiply(res, im1) + np.multiply(1-res, im2)
-    # plt.figure()
-    # plt.imshow(res, cmap=plt.cm.gray)
-    # plt.show(block=True)
-
     return path
 
 
@@ -507,12 +500,7 @@ def render_panorama_rgb(ims, Hs):
     ims_yiq = [rgb2yiq(im) for im in ims]
 
     alpha_ker_size = 7
-    levels = 1
-    pow2lv = 2**(levels-1)
     sz, borders, x,y ,warped_corners= get_pan_size_and_borders(ims, Hs)
-    origsz = sz
-    sz = (sz[0] if sz[0] % pow2lv == 0 else sz[0] + pow2lv - sz[0] % pow2lv,
-          sz[1] if sz[1] % pow2lv == 0 else sz[1] + pow2lv - sz[1] % pow2lv)
     panorama = np.zeros((sz[0], sz[1], 3))
     temp_panorama = np.zeros((sz[0], sz[1], 3))
 
@@ -520,19 +508,15 @@ def render_panorama_rgb(ims, Hs):
         temp_panorama[:] = 0
         if i == 0:
             for cnl in range(3):
-                panorama[:origsz[0], :origsz[1], cnl] = back_warp(ims_yiq[i][:,:,cnl], Hs[i], x, y)
+                panorama[:, :, cnl] = back_warp(ims_yiq[i][:,:,cnl], Hs[i], x, y)
         else:
             for cnl in range(3):
-                temp_panorama[:origsz[0], :origsz[1], cnl] = back_warp(ims_yiq[i][:, :, cnl], Hs[i], x, y)
-            mask = generate_best_mask(warped_corners, panorama[:,:,0], temp_panorama[:,:,0], i, x[0,0], y[0,0], max_cover=False)
-            # plt.figure();plt.imshow(temp_panorama[:,:,0])
+                temp_panorama[:, :, cnl] = back_warp(ims_yiq[i][:, :, cnl], Hs[i], x, y)
+            mask = generate_best_mask(warped_corners, panorama[:,:,0], temp_panorama[:,:,0], i, x[0,0], y[0,0],
+                                      max_cover=False)
             mask = blur_spatial(mask.astype(np.float32), alpha_ker_size)
             neg_mask = 1 - mask
             for cnl in range(3):
                 panorama[:,:,cnl] = np.multiply(panorama[:,:,cnl], mask) + np.multiply(temp_panorama[:,:,cnl], neg_mask)
-            # panorama = blend_rgb_image(panorama, temp_panorama, mask, levels, 7, 3)
 
-            # plt.figure()
-            # plt.subplot(2,1,1); plt.imshow(panorama[:origsz[0], :origsz[1], :])
-            # plt.subplot(2,1,2); plt.imshow(mask[:origsz[0], :origsz[1]], cmap=plt.cm.gray)
-    return clipped_yiq2rgb(panorama[:origsz[0], :origsz[1], :])
+    return clipped_yiq2rgb(panorama)
