@@ -38,6 +38,8 @@ def read_image(filename, representation):
 
 # -----------------------------------------------------------
 
+# TODO - what is the correct crop size?
+PATCH_SIZE = (8,8)
 
 def load_dataset(filenames, batch_size, corruption_func, crop_size):
     """
@@ -145,10 +147,8 @@ implementing the prediction step for restoring images.
     :param num_valid_samples:
     :return:
     """
-    # TODO - what is the correct crop size?
-    crop_size = (8, 8)
-
     # divide images to train and test
+    crop_size = model.input_shape
     num_images = len(images)
     shuffled_ims = images[np.random.permutation(num_images)]
     train_set_size = int(np.ceil(0.8 * num_images))
@@ -168,4 +168,11 @@ def restore_image(corrupted_image, base_model, num_channels):
     :param num_channels:
     :return restored_image
     """
-    pass
+    nn = build_nn_model(*corrupted_image.shape, num_channels)
+    nn.set_weights(base_model.get_weights())
+
+    # todo - make sure i can use it
+    from sklearn.feature_extraction.image import extract_patches_2d, reconstruct_from_patches_2d
+    corrupted_patches = extract_patches_2d(corrupted_image, PATCH_SIZE)
+    estimated_patches = nn.predict(corrupted_patches)  # probably need to change it from (N,height,width) to (N,1, height,width)
+    return reconstruct_from_patches_2d(estimated_patches, corrupted_image.shape)
