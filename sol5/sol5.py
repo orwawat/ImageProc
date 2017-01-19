@@ -1,6 +1,7 @@
 import numpy as np
 from keras.layers import Input, Convolution2D, Activation, merge
 from keras.models import Model
+from keras.optimizers import Adam
 
 # --------------------- From sol1 ------------------------
 from skimage.color import rgb2gray
@@ -33,6 +34,7 @@ def read_image(filename, representation):
         return im.astype(np.float32) / MAX_INTENSITY
     else:
         raise Exception('Unsupported representation: {0}'.format(representation))
+
 
 # -----------------------------------------------------------
 
@@ -69,9 +71,9 @@ def load_dataset(filenames, batch_size, corruption_func, crop_size):
 
             # randomly choose patch to crop, and slice out the patch to the result
             r, c = im.shape
-            y, x = np.random.randint(0, r-crop_size[0], 1), np.random.randint(0, c-crop_size[1], 1)
-            source_batch[i, 0, :, :] = im[y:y+crop_size[0], x:x+crop_size[1]]
-            target_batch[i, 0, :, :] = im_cor[y:y+crop_size[0], x:x+crop_size[1]]
+            y, x = np.random.randint(0, r - crop_size[0], 1), np.random.randint(0, c - crop_size[1], 1)
+            source_batch[i, 0, :, :] = im[y:y + crop_size[0], x:x + crop_size[1]]
+            target_batch[i, 0, :, :] = im_cor[y:y + crop_size[0], x:x + crop_size[1]]
 
         yield source_batch, target_batch
 
@@ -115,5 +117,55 @@ def build_nn_model(height, width, num_channels):
     return Model(input=input_a, output=conv_e)
 
 
+def train_model(model, images, corruption_func, batch_size, samples_per_epoch, num_epochs, num_valid_samples):
+    """
+    The above function should divide the images into a training set and validation set, using an 80-20 split,
+and generate from each set a dataset with the given batch size and corruption function (using the function
+from section 3). Then, you should call to the compile() method of the model using the mean square
+error loss and ADAM optimizer. Instead of the default values for ADAM, import the class Adam from
+keras.optimizers, and use Adam(beta_2=0.9). Finally, you should call fit_generator to actually
+train the model.
+The input arguments of the above function are:
+model { a general neural network model for image restoration.
+images { a list of le paths pointing to image les. You should assume these paths are complete, and
+should append anything to them.
+corruption_func { same as described in section 3.
+batch_size { the size of the batch of examples for each iteration of SGD.
+samples_per_epoch { The number of samples in each epoch (actual samples, not batches!).
+num_epochs { The number of epochs for which the optimization will run.
+num_valid_samples { The number of samples in the validation set to test on after every epoch.
+Up to this point we have trained a neural network model on a given training set. Next, we move to
+implementing the prediction step for restoring images.
+    :param model:
+    :param images:
+    :param corruption_func:
+    :param batch_size:
+    :param samples_per_epoch:
+    :param num_epochs:
+    :param num_valid_samples:
+    :return:
+    """
+    # TODO - what is the correct crop size?
+    crop_size = (8, 8)
+
+    # divide images to train and test
+    num_images = len(images)
+    shuffled_ims = images[np.random.permutation(num_images)]
+    train_set_size = int(np.ceil(0.8 * num_images))
+    train_ims_gen = load_dataset(shuffled_ims[:train_set_size], batch_size, corruption_func, crop_size)
+    val_ims_gen = load_dataset(shuffled_ims[train_set_size:], batch_size, corruption_func, crop_size)
+
+    m = model.compile(optimizer=Adam(beta_2=0.9), loss='mean squared error')
+    m.fit_generator(train_ims_gen, samples_per_epoch, num_epochs, validation_data=val_ims_gen,
+                    nb_val_samples=num_valid_samples)
 
 
+def restore_image(corrupted_image, base_model, num_channels):
+    """
+
+    :param corrupted_image:
+    :param base_model:
+    :param num_channels:
+    :return restored_image
+    """
+    pass
