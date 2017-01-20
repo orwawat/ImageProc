@@ -60,14 +60,14 @@ def load_dataset(filenames, batch_size, corruption_func, crop_size):
     iters = range(batch_size)
     dims = 1
     nums_ims = len(filenames)
-    cached_ims = {filename: 0 for filename in filenames}
+    cached_ims = {filename: None for filename in filenames}
 
     while True:
-        source_batch, target_batch = np.zeros((batch_size, dims, *crop_size))
+        source_batch, target_batch = np.zeros((batch_size, dims, *crop_size)), np.zeros((batch_size, dims, *crop_size))
         for i in iters:
             # choose image and load it
-            im_path = filenames[np.random.randint(0, nums_ims, 1)]
-            if cached_ims[im_path] == 0:  # if not cached already, read and cahce
+            im_path = filenames[np.random.randint(0, nums_ims)]
+            if cached_ims[im_path] is None:  # if not cached already, read and cache
                 cached_ims[im_path] = read_image(im_path, REP_GREY)
             im = cached_ims[im_path]
 
@@ -76,7 +76,7 @@ def load_dataset(filenames, batch_size, corruption_func, crop_size):
 
             # randomly choose patch to crop, and slice out the patch to the result
             r, c = im.shape
-            y, x = np.random.randint(0, r - crop_size[0], 1), np.random.randint(0, c - crop_size[1], 1)
+            y, x = np.random.randint(0, r - crop_size[0]), np.random.randint(0, c - crop_size[1])
             source_batch[i, 0, :, :] = im[y:y + crop_size[0], x:x + crop_size[1]] - 0.5
             target_batch[i, 0, :, :] = im_cor[y:y + crop_size[0], x:x + crop_size[1]] - 0.5
 
@@ -151,15 +151,15 @@ implementing the prediction step for restoring images.
     :return:
     """
     # divide images to train and test
-    crop_size = model.input_shape
+    crop_size = (model.input_shape[2], model.input_shape[3])
     num_images = len(images)
-    shuffled_ims = images[np.random.permutation(num_images)]
+    shuffled_ims = np.asarray(images, dtype=object)[np.random.permutation(num_images)]
     train_set_size = int(np.ceil(0.8 * num_images))
     train_ims_gen = load_dataset(shuffled_ims[:train_set_size], batch_size, corruption_func, crop_size)
     val_ims_gen = load_dataset(shuffled_ims[train_set_size:], batch_size, corruption_func, crop_size)
 
-    m = model.compile(optimizer=Adam(beta_2=0.9), loss='mean squared error')
-    m.fit_generator(train_ims_gen, samples_per_epoch, num_epochs, validation_data=val_ims_gen,
+    model.compile(optimizer=Adam(beta_2=0.9), loss='mean_squared_error')
+    model.fit_generator(train_ims_gen, samples_per_epoch, num_epochs, validation_data=val_ims_gen,
                     nb_val_samples=num_valid_samples)
 
 
@@ -171,15 +171,15 @@ def restore_image(corrupted_image, base_model, num_channels):
     :param num_channels:
     :return restored_image
     """
-    nn = build_nn_model(*corrupted_image.shape, num_channels)
-    nn.set_weights(base_model.get_weights())
+    model = build_nn_model(*corrupted_image.shape, num_channels)
+    model.set_weights(base_model.get_weights())
 
     # todo - make sure i can use it
     # from sklearn.feature_extraction.image import extract_patches_2d, reconstruct_from_patches_2d
     # corrupted_patches = extract_patches_2d(corrupted_image, PATCH_SIZE) - 0.5
     # estimated_patches = nn.predict(corrupted_patches) + 0.5 # probably need to change it from (N,height,width) to (N,1, height,width)
     # return np.clip(reconstruct_from_patches_2d(estimated_patches, corrupted_image.shape), 0, 1).astype(np.float32)
-    return np.clip(nn.predict(corrupted_image - 0.5) + 0.5, 0, 1).astype(np.float32)
+    return np.clip(model.predict(corrupted_image[np.newaxis,np.newaxis, ...] - 0.5, batch_size=1)[0][0] + 0.5, 0, 1).astype(np.float32)
 
 
 def add_gaussian_noise(image, min_sigma, max_sigma):
