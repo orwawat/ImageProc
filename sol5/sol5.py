@@ -3,6 +3,8 @@ from keras.layers import Input, Convolution2D, Activation, merge
 from keras.models import Model
 from keras.optimizers import Adam
 import sol5_utils
+from scipy.ndimage.filters import convolve
+from math import pi as PI
 
 # --------------------- From sol1 ------------------------
 from skimage.color import rgb2gray
@@ -200,3 +202,65 @@ def learn_denoising_model(quick_mode=False):
     :return: model, num_channels
     """
     images = sol5_utils.images_for_denoising()
+    patch_size = (24, 24)
+    num_channels = 48
+    sigma_range = (0, 0.2)
+    im_per_batch = 100 if not quick_mode else 10
+    samples_per_epoch = 10000 if not quick_mode else 30
+    total_epochs = 5 if not quick_mode else 2
+    samples_for_validation = 1000 if not quick_mode else 30
+
+    corrupt_im = lambda im: add_gaussian_noise(im, *sigma_range)
+
+    model = build_nn_model(*patch_size, num_channels)
+    train_model(model, images, corrupt_im, im_per_batch, samples_per_epoch, total_epochs, samples_for_validation)
+
+    return model, num_channels
+
+
+def add_motion_blur(image, kernel_size, angle):
+    """
+
+    :param image:
+    :param kernel_size:
+    :param angle:
+    :return: corrupted
+    """
+    ker = sol5_utils.motion_blur_kernel(kernel_size, angle)
+    return convolve(image, ker, mode='reflect').astype(np.float32)
+
+
+def  random_motion_blur(image, list_of_kernel_sizes):
+    """
+
+    :param image:
+    :param list_of_kernel_sizes:
+    :return: corrupted
+    """
+    angles_range = (0, PI)
+    rnd_angle = np.random.uniform(*angles_range, 1)
+    rnd_size = np.random.choice(list_of_kernel_sizes, 1)
+    return add_motion_blur(image, rnd_size, rnd_angle)
+
+
+def learn_deblurring_model(quick_mode=False):
+    """
+
+    :param quick_mode:
+    :return: model, num_channels
+    """
+    images = sol5_utils.images_for_deblurring()
+    patch_size = (16, 16)
+    num_channels = 32
+    kernel_sizes = [7]
+    im_per_batch = 100 if not quick_mode else 10
+    samples_per_epoch = 10000 if not quick_mode else 30
+    total_epochs = 10 if not quick_mode else 2
+    samples_for_validation = 1000 if not quick_mode else 30
+
+    corrupt_im = lambda im: random_motion_blur(im, kernel_sizes)
+
+    model = build_nn_model(*patch_size, num_channels)
+    train_model(model, images, corrupt_im, im_per_batch, samples_per_epoch, total_epochs, samples_for_validation)
+
+    return model, num_channels
