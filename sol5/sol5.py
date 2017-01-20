@@ -2,6 +2,7 @@ import numpy as np
 from keras.layers import Input, Convolution2D, Activation, merge
 from keras.models import Model
 from keras.optimizers import Adam
+import sol5_utils
 
 # --------------------- From sol1 ------------------------
 from skimage.color import rgb2gray
@@ -74,8 +75,8 @@ def load_dataset(filenames, batch_size, corruption_func, crop_size):
             # randomly choose patch to crop, and slice out the patch to the result
             r, c = im.shape
             y, x = np.random.randint(0, r - crop_size[0], 1), np.random.randint(0, c - crop_size[1], 1)
-            source_batch[i, 0, :, :] = im[y:y + crop_size[0], x:x + crop_size[1]]
-            target_batch[i, 0, :, :] = im_cor[y:y + crop_size[0], x:x + crop_size[1]]
+            source_batch[i, 0, :, :] = im[y:y + crop_size[0], x:x + crop_size[1]] - 0.5
+            target_batch[i, 0, :, :] = im_cor[y:y + crop_size[0], x:x + crop_size[1]] - 0.5
 
         yield source_batch, target_batch
 
@@ -107,7 +108,7 @@ def build_nn_model(height, width, num_channels):
     :param num_channels:
     :return:
     """
-    NUM_RES_BLOCKS = 6
+    NUM_RES_BLOCKS = 5
     input_a = Input(shape=(1, height, width))
     conv_b = Convolution2D(num_channels, 3, 3, border_mode='same')(input_a)
     relu_c = Activation('relu')(conv_b)
@@ -172,7 +173,30 @@ def restore_image(corrupted_image, base_model, num_channels):
     nn.set_weights(base_model.get_weights())
 
     # todo - make sure i can use it
-    from sklearn.feature_extraction.image import extract_patches_2d, reconstruct_from_patches_2d
-    corrupted_patches = extract_patches_2d(corrupted_image, PATCH_SIZE)
-    estimated_patches = nn.predict(corrupted_patches)  # probably need to change it from (N,height,width) to (N,1, height,width)
-    return reconstruct_from_patches_2d(estimated_patches, corrupted_image.shape)
+    # from sklearn.feature_extraction.image import extract_patches_2d, reconstruct_from_patches_2d
+    # corrupted_patches = extract_patches_2d(corrupted_image, PATCH_SIZE) - 0.5
+    # estimated_patches = nn.predict(corrupted_patches) + 0.5 # probably need to change it from (N,height,width) to (N,1, height,width)
+    # return np.clip(reconstruct_from_patches_2d(estimated_patches, corrupted_image.shape), 0, 1).astype(np.float32)
+    return np.clip(nn.predict(corrupted_image - 0.5) + 0.5, 0, 1).astype(np.float32)
+
+
+def add_gaussian_noise(image, min_sigma, max_sigma):
+    """
+
+    :param image:
+    :param min_sigma:
+    :param max_sigma:
+    :return: corrupted
+    """
+    sigma = np.random.uniform(min_sigma, max_sigma)
+    noise = np.random.normal(0, sigma, image.size).reshape(image.shape)
+    return np.clip(image + noise, 0, 1)
+
+
+def learn_denoising_model(quick_mode=False):
+    """
+
+    :param quick_mode:
+    :return: model, num_channels
+    """
+    images = sol5_utils.images_for_denoising()
