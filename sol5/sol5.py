@@ -41,8 +41,6 @@ def read_image(filename, representation):
 
 # -----------------------------------------------------------
 
-# TODO - what is the correct crop size?
-PATCH_SIZE = (8,8)
 
 def load_dataset(filenames, batch_size, corruption_func, crop_size):
     """
@@ -63,6 +61,7 @@ def load_dataset(filenames, batch_size, corruption_func, crop_size):
     cached_ims = {filename: None for filename in filenames}
 
     while True:
+        # note that source_batch holds corrupted images! and target batch is the original (clean images)
         source_batch, target_batch = np.zeros((batch_size, dims, *crop_size)), np.zeros((batch_size, dims, *crop_size))
         for i in iters:
             # choose image and load it
@@ -77,8 +76,8 @@ def load_dataset(filenames, batch_size, corruption_func, crop_size):
             # randomly choose patch to crop, and slice out the patch to the result
             r, c = im.shape
             y, x = np.random.randint(0, r - crop_size[0]), np.random.randint(0, c - crop_size[1])
-            source_batch[i, 0, :, :] = im[y:y + crop_size[0], x:x + crop_size[1]] - 0.5
-            target_batch[i, 0, :, :] = im_cor[y:y + crop_size[0], x:x + crop_size[1]] - 0.5
+            target_batch[i, 0, :, :] = im[y:y + crop_size[0], x:x + crop_size[1]] - 0.5
+            source_batch[i, 0, :, :] = im_cor[y:y + crop_size[0], x:x + crop_size[1]] - 0.5
 
         yield source_batch, target_batch
 
@@ -114,8 +113,8 @@ def build_nn_model(height, width, num_channels):
     input_a = Input(shape=(1, height, width))
     conv_b = Convolution2D(num_channels, 3, 3, border_mode='same')(input_a)
     relu_c = Activation('relu')(conv_b)
-    curr_output_tensor = relu_c
-    for res_block in range(NUM_RES_BLOCKS):
+    curr_output_tensor = resblock(relu_c, num_channels)
+    for res_block in range(NUM_RES_BLOCKS-1):
         curr_output_tensor = resblock(curr_output_tensor, num_channels)
     add_d = merge([curr_output_tensor, relu_c], mode='sum')
     conv_e = Convolution2D(1, 3, 3, border_mode='same')(add_d)
@@ -173,12 +172,6 @@ def restore_image(corrupted_image, base_model, num_channels):
     """
     model = build_nn_model(*corrupted_image.shape, num_channels)
     model.set_weights(base_model.get_weights())
-
-    # todo - make sure i can use it
-    # from sklearn.feature_extraction.image import extract_patches_2d, reconstruct_from_patches_2d
-    # corrupted_patches = extract_patches_2d(corrupted_image, PATCH_SIZE) - 0.5
-    # estimated_patches = nn.predict(corrupted_patches) + 0.5 # probably need to change it from (N,height,width) to (N,1, height,width)
-    # return np.clip(reconstruct_from_patches_2d(estimated_patches, corrupted_image.shape), 0, 1).astype(np.float32)
     return np.clip(model.predict(corrupted_image[np.newaxis,np.newaxis, ...] - 0.5, batch_size=1)[0][0] + 0.5, 0, 1).astype(np.float32)
 
 
@@ -238,8 +231,8 @@ def  random_motion_blur(image, list_of_kernel_sizes):
     :return: corrupted
     """
     angles_range = (0, PI)
-    rnd_angle = np.random.uniform(*angles_range, 1)
-    rnd_size = np.random.choice(list_of_kernel_sizes, 1)
+    rnd_angle = np.random.uniform(*angles_range)
+    rnd_size = np.random.choice(list_of_kernel_sizes)
     return add_motion_blur(image, rnd_size, rnd_angle)
 
 
