@@ -257,3 +257,58 @@ def learn_deblurring_model(quick_mode=False):
     train_model(model, images, corrupt_im, im_per_batch, samples_per_epoch, total_epochs, samples_for_validation)
 
     return model, num_channels
+
+
+
+# ----------------------------------------------------------------------------------
+CONV_MODE = 'reflect'
+def blur_im(im, filter):
+    """
+    Helper function which blurs the given image in both directions with the given filter
+    :param im: Image to be blurred
+    :param filter:  filter to blurwith
+    :return: A blur copy of the image
+    """
+    blurred_im = convolve(im, filter, mode=CONV_MODE)
+    return convolve(blurred_im, filter.transpose(), mode=CONV_MODE).astype(np.float32)
+
+def reduce(im, filter):
+    """
+    Reduce the size of the image by 2 in each axis by blurring it with the given filter and
+    sub-sampling it in even indices.
+    :param im: Image to be reduced
+    :param filter: The filter to use in the blurring phase
+    :return: The reduced image
+    """
+    return blur_im(im, filter)[::2, ::2]
+
+
+def expand(im, filter):
+    """
+    Expands the size of the image by 2 in each axis by padding with 0's in odd indices and blurring it with
+        the given filter (times 2 to compensate the loss of illumination)
+    :param im: Image to be expanded
+    :param filter: The filter to use in the blurring phase
+    :return: The expanded image
+    """
+    expanded_im = np.zeros((im.shape[0] * 2, im.shape[1] * 2), dtype=np.float32)
+    expanded_im[::2, ::2] = im.copy()
+    return blur_im(expanded_im, filter*2)
+
+
+def learn_super_resolution_model():
+    images = sol5_utils.images_for_denoising()
+    patch_size = (32, 32)
+    num_channels = 32
+    im_per_batch = 100
+    samples_per_epoch = 10000
+    total_epochs = 3
+    samples_for_validation = 1000
+
+    filter = np.array([[1,2,1]])/4.0
+    corrupt_im = lambda im: expand(reduce(im, filter), filter)
+
+    model = build_nn_model(*patch_size, num_channels)
+    train_model(model, images, corrupt_im, im_per_batch, samples_per_epoch, total_epochs, samples_for_validation)
+
+    return model, num_channels
