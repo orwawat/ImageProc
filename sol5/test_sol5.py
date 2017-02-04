@@ -17,11 +17,11 @@ def show(im, imcor, imres):
 
 def test_denoise():
     num_ims = 10
-    model_path = "model.h5"
+    model_path = "model_q.h5"
     print("Start denoising test")
     # if os.path.exists(model_path):
 
-    model, num_channels = learn_denoising_model(False)
+    model, num_channels = learn_denoising_model(True)
     model.save_weights(model_path)
     for i,im_path in enumerate(np.random.choice(sol5_utils.images_for_denoising(), size=num_ims)):
         print("Start denoising im num: {0}/{1}".format(i+1, num_ims))
@@ -53,11 +53,11 @@ def test_denoise_wo_train():
 
 def test_deblur():
     num_ims = 10
-    model_path = "model_blur.h5"
+    model_path = "model_blur_q.h5"
     print("Start debluring test")
     # if os.path.exists(model_path):
 
-    model, num_channels = learn_deblurring_model(False)
+    model, num_channels = learn_deblurring_model(True)
     model.save_weights(model_path)
     for i, im_path in enumerate(np.random.choice(sol5_utils.images_for_deblurring(), size=num_ims)):
         print("Start debluring im num: {0}/{1}".format(i+1, num_ims))
@@ -151,7 +151,7 @@ def test_suprres_wo_train():
     print("Done debluring test")
 
 def main():
-    for t in [test_suprres_wo_train]:
+    for t in [test_denoise, test_deblur, test_deblur_wo_train, test_denoise_wo_train]:
         t()
 
 if __name__ == '__main__':

@@ -79,7 +79,7 @@ def load_dataset(filenames, batch_size, corruption_func, crop_size):
             target_batch[i, 0, :, :] = im[y:y + crop_size[0], x:x + crop_size[1]] - 0.5
             source_batch[i, 0, :, :] = im_cor[y:y + crop_size[0], x:x + crop_size[1]] - 0.5
 
-        yield source_batch, target_batch
+        yield source_batch.astype(np.float32), target_batch.astype(np.float32)
 
 
 def resblock(input_tensor, num_channels):
@@ -194,7 +194,7 @@ def add_gaussian_noise(image, min_sigma, max_sigma):
     """
     sigma = np.random.uniform(min_sigma, max_sigma)
     noise = np.random.normal(0, sigma, image.size).reshape(image.shape)
-    return np.clip(image + noise, 0, 1)
+    return np.clip(image + noise, 0, 1).astype(np.float32)
 
 
 def learn_denoising_model(quick_mode=False):
