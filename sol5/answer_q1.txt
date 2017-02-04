@@ -1,0 +1,13 @@
+Q1: suggest how to use the workflow you have implemented in this assignment to train a network that
+could be used for super-resolution.
+
+A: In order to use the workflow we used here to train the network to create super resolution images,
+we need to train it to sharpen expanded images. As opposed to previously learned methods for sharpening which deals
+with specific aspects of the blurred-expanded-image (usually by fabricating the missing high frequencies), the nn has
+the potential to learn how 'natural' images should look, and complete this task in a better manner.
+What I did to make it happen is create a corruption image which reduces the image to half it size (as in the pyramid
+blending ex), and then re-expand it, thus getting an expanded image. The workflow stayed the same, each image was
+reduced and expanded, random patches has been cropped and the nn learned how to restore the patches.
+I used 48 channels with patches of (32,32).
+Finally, to use the image to actually restore a full image, I used the conv-trick. Upon receiving an image,
+I expanded it, and then let the nn restore it.

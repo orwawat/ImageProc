@@ -104,10 +104,10 @@ def build_nn_model(height, width, num_channels):
     (1, height, width), and all convolutional layers (including residual blocks) with number of output channels equal
     to num_channels, except the very last convolutional layer which has a single output channel.
 
-    :param height:
-    :param width:
-    :param num_channels:
-    :return:
+    :param height: height of each input-patch
+    :param width: width of each input-patch
+    :param num_channels: number of channel of each input-patch (1 for greyscale, 3 for rgb)
+    :return: An untrained keras model.
     """
     NUM_RES_BLOCKS = 5
     input_a = Input(shape=(1, height, width))
@@ -123,31 +123,23 @@ def build_nn_model(height, width, num_channels):
 
 def train_model(model, images, corruption_func, batch_size, samples_per_epoch, num_epochs, num_valid_samples):
     """
-    The above function should divide the images into a training set and validation set, using an 80-20 split,
-and generate from each set a dataset with the given batch size and corruption function (using the function
-from section 3). Then, you should call to the compile() method of the model using the mean square
-error loss and ADAM optimizer. Instead of the default values for ADAM, import the class Adam from
-keras.optimizers, and use Adam(beta_2=0.9). Finally, you should call fit_generator to actually
-train the model.
-The input arguments of the above function are:
-model { a general neural network model for image restoration.
-images { a list of le paths pointing to image les. You should assume these paths are complete, and
-should append anything to them.
-corruption_func { same as described in section 3.
-batch_size { the size of the batch of examples for each iteration of SGD.
-samples_per_epoch { The number of samples in each epoch (actual samples, not batches!).
-num_epochs { The number of epochs for which the optimization will run.
-num_valid_samples { The number of samples in the validation set to test on after every epoch.
-Up to this point we have trained a neural network model on a given training set. Next, we move to
-implementing the prediction step for restoring images.
-    :param model:
-    :param images:
-    :param corruption_func:
-    :param batch_size:
-    :param samples_per_epoch:
-    :param num_epochs:
-    :param num_valid_samples:
-    :return:
+    The above function divides the images into a training set and validation set, using an 80-20 split,
+    and generate from each set a dataset with the given batch size and corruption function (using the function
+    from section 3). Then, the compile() method of the model using the mean square
+    error loss and ADAM optimizer is invoked.
+
+    The input arguments of the above function are:
+
+    :param model:  a general neural network model for image restoration.
+    :param images: a list of le paths pointing to image les. You should assume these paths are complete, and
+                    should append anything to them.
+    :param corruption_func: same as described in section 3.
+    :param batch_size: the size of the batch of examples for each iteration of SGD.
+    :param samples_per_epoch: The number of samples in each epoch (actual samples, not batches!).
+    :param num_epochs: The number of epochs for which the optimization will run.
+    :param num_valid_samples: The number of samples in the validation set to test on after every epoch.
+                    Up to this point we have trained a neural network model on a given training set. Next, we move to
+                    implementing the prediction step for restoring images.
     """
     # divide images to train and test
     crop_size = (model.input_shape[2], model.input_shape[3])
@@ -164,24 +156,41 @@ implementing the prediction step for restoring images.
 
 def restore_image(corrupted_image, base_model, num_channels):
     """
+    Creates a new model that fits the size of the input image, and copy the weights from the
+    given model to the adjusted model, before using the predict() method to restore the image.
+    Finally, clips the results to the [0, 1] range.
 
-    :param corrupted_image:
-    :param base_model:
-    :param num_channels:
-    :return restored_image
+    The above function has the following input arguments:
+
+    :param corrupted_image: A grayscale image of shape (height, width) and with values in the [0, 1] range of type
+                            float32. Assuming the size of the image is at least as large as the size of the image
+                            patches during training.
+    :param base_model: A neural network trained to restore small patches (the model described in section 4, after
+                        being trained in section 5). The input and output of the network are images with values in the
+                        [−0.5, 0.5] range
+    :param num_channels: the number of channels used in the base model.
+    :return restored_image - The restored image
     """
     model = build_nn_model(*corrupted_image.shape, num_channels)
     model.set_weights(base_model.get_weights())
-    return np.clip(model.predict(corrupted_image[np.newaxis,np.newaxis, ...] - 0.5, batch_size=1)[0][0] + 0.5, 0, 1).astype(np.float32)
+    return np.clip(model.predict(
+        corrupted_image[np.newaxis,np.newaxis, ...] - 0.5, batch_size=1)[0][0] + 0.5, 0, 1).astype(np.float32)
 
 
 def add_gaussian_noise(image, min_sigma, max_sigma):
     """
+    Randomly sample a value of sigma, uniformly distributed between min_sigma and
+    max_sigma, followed by adding to every pixel of the input image a zero-mean gaussian random variable
+    with standard deviation equal to sigma. Before returning the results, the values should be cliped to
+    [0, 1].
 
-    :param image:
-    :param min_sigma:
-    :param max_sigma:
-    :return: corrupted
+    The input arguments to the function are:
+
+    :param image: a grayscale image with values in the [0, 1] range of type float32.
+    :param min_sigma: a non-negative scalar value representing the minimal variance of the gaussian distribution.
+    :param max_sigma:  a non-negative scalar value larger than or equal to min_sigma, representing the maximal
+                        variance of the gaussian distribution.
+    :return: corrupted - the noisy image
     """
     sigma = np.random.uniform(min_sigma, max_sigma)
     noise = np.random.normal(0, sigma, image.size).reshape(image.shape)
@@ -190,9 +199,12 @@ def add_gaussian_noise(image, min_sigma, max_sigma):
 
 def learn_denoising_model(quick_mode=False):
     """
+    The above method trains a network which expect patches of size 24×24,
+    using 48 channels for all but the last layer. The corruption used is a gaussian noise with sigma
+    in the range [0, 0.2].
 
-    :param quick_mode:
-    :return: model, num_channels
+    :param quick_mode: a single argument used solely for the presubmission phase
+    :return: model, num_channels - The train models and the number fo channels used in it
     """
     images = sol5_utils.images_for_denoising()
     patch_size = (24, 24)
@@ -213,11 +225,14 @@ def learn_denoising_model(quick_mode=False):
 
 def add_motion_blur(image, kernel_size, angle):
     """
-
-    :param image:
-    :param kernel_size:
-    :param angle:
-    :return: corrupted
+    The function add_motion_blur simulates motion blur on the given image using a square kernel
+    of size kernel_size where the line (as described above) has the given angle in radians, measured
+    relative to the positive horizontal axis, e.g. a horizontal line would have a zero angle, and for the
+    figure above the angle would be 3π/4 (or 135◦ in degrees).
+    :param image: a grayscale image with values in the [0, 1] range of type float32.
+    :param kernel_size: an odd integer specifying the size of the kernel (even integers are ill-defined).
+    :param angle: an angle in radians in the range [0, π).
+    :return: corrupted - The corrupted image
     """
     ker = sol5_utils.motion_blur_kernel(kernel_size, angle)
     return convolve(image, ker, mode='reflect').astype(np.float32)
@@ -225,10 +240,13 @@ def add_motion_blur(image, kernel_size, angle):
 
 def  random_motion_blur(image, list_of_kernel_sizes):
     """
-
-    :param image:
-    :param list_of_kernel_sizes:
-    :return: corrupted
+    The function random_motion_blur(image, list_of_kernel_sizes) samples an angle at uniform from the range
+    [0, π), and chooses a kernel size at uniform from the list list_of_kernel_sizes, followed by applying
+    the previous function with the given image and the randomly sampled parameters. The input arguments
+    to the above two functions are:
+    :param image: a grayscale image with values in the [0, 1] range of type float32.
+    :param list_of_kernel_sizes: a list of odd integers.
+    :return: corrupted - The corrupted image
     """
     angles_range = (0, PI)
     rnd_angle = np.random.uniform(*angles_range)
@@ -238,9 +256,11 @@ def  random_motion_blur(image, list_of_kernel_sizes):
 
 def learn_deblurring_model(quick_mode=False):
     """
+    The above method trains a network which expect patches of size 16×16,
+    and have 32 channels in all layers except the last.
 
-    :param quick_mode:
-    :return: model, num_channels
+    :param quick_mode: a single argument used solely for the presubmission phase.
+    :return: model, num_channels - The train models and the number fo channels used in it
     """
     images = sol5_utils.images_for_deblurring()
     patch_size = (16, 16)
